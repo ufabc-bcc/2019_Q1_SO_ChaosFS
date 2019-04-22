@@ -27,37 +27,8 @@
 
 #define FUSE_USE_VERSION 31
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
-/* Inclui a bibliteca fuse, base para o funcionamento do nosso FS */
-#include <fuse.h>
-#include <string.h>
-#include <errno.h>
-
-/* Tamnanho do bloco do dispositivo */
-#define TAM_BLOCO 4096
-/* A atual implementação utiliza apenas um bloco para todos os inodes
-   de todos os arquivos do sistema. Ou seja, cria um limite rígido no
-   número de arquivos e tamanho do dispositivo. */
-#define MAX_FILES (TAM_BLOCO / sizeof(inode))
-/* 1 para o superbloco e o resto para os arquivos. Os arquivos nesta
-   implementação também tem apenas 1 bloco no máximo de tamanho. */
-#define MAX_BLOCOS (1 + MAX_FILES)
-/* Parte da sua tarefa será armazenar e recuperar corretamente os
-   direitos dos arquivos criados */
-#define DIREITOS_PADRAO 0644
-
-typedef char byte;
-
-/* Um inode guarda todas as informações relativas a um arquivo como
-   por exemplo nome, direitos, tamanho, bloco inicial, ... */
-typedef struct {
-    char nome[250];
-    uint16_t direitos;
-    uint16_t tamanho;
-    uint16_t bloco;
-} inode;
+#include "chaosfs.h"
+#include "utils.h"
 
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
@@ -102,20 +73,6 @@ void init_brisafs() {
     char *conteudo = "Adoro as aulas de SO da UFABC!\n";
     //0 está sendo usado pelo superbloco. O primeiro livre é o 1
     preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
-}
-
-/* Devolve 1 caso representem o mesmo nome e 0 cc */
-int compara_nome (const char *a, const char *b) {
-    char *ma = (char*)a;
-    char *mb = (char*)b;
-    //Joga fora barras iniciais
-    while (ma[0] != '\0' && ma[0] == '/')
-        ma++;
-    while (mb[0] != '\0' && mb[0] == '/')
-        mb++;
-    //Cuidado! Pode ser necessário jogar fora também barras repetidas internas
-    //quando tiver diretórios
-    return strcmp(ma, mb) == 0;
 }
 
 /* A função getattr_brisafs devolve os metadados de um arquivo cujo
