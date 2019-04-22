@@ -64,7 +64,7 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
    seja necessário "formatar" o arquivo pegando o seu tamanho e
    inicializando todas as posições (ou apenas o(s) superbloco(s))
    com os valores apropriados */
-void init_brisafs() {
+void init_chaosfs() {
     disco = calloc (MAX_BLOCOS, TAM_BLOCO);
     superbloco = (inode*) disco; //posição 0
     //Cria um arquivo na mão de boas vindas
@@ -75,10 +75,10 @@ void init_brisafs() {
     preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
 }
 
-/* A função getattr_brisafs devolve os metadados de um arquivo cujo
+/* A função getattr_chaosfs devolve os metadados de um arquivo cujo
    caminho é dado por path. Devolve 0 em caso de sucesso ou um código
    de erro. Os atributos são devolvidos pelo parâmetro stbuf */
-static int getattr_brisafs(const char *path, struct stat *stbuf,
+static int getattr_chaosfs(const char *path, struct stat *stbuf,
                            struct fuse_file_info *fi) {
     memset(stbuf, 0, sizeof(struct stat));
 
@@ -109,7 +109,7 @@ static int getattr_brisafs(const char *path, struct stat *stbuf,
 /* Devolve ao FUSE a estrutura completa do diretório indicado pelo
    parâmetro path. Devolve 0 em caso de sucesso ou um código de
    erro. Atenção ao uso abaixo dos demais parâmetros. */
-static int readdir_brisafs(const char *path, void *buf, fuse_fill_dir_t filler,
+static int readdir_chaosfs(const char *path, void *buf, fuse_fill_dir_t filler,
                            off_t offset, struct fuse_file_info *fi,
                            enum fuse_readdir_flags flags) {
     (void) offset;
@@ -129,15 +129,15 @@ static int readdir_brisafs(const char *path, void *buf, fuse_fill_dir_t filler,
 
 /* Abre um arquivo. Caso deseje controlar os arquvos abertos é preciso
    implementar esta função */
-static int open_brisafs(const char *path, struct fuse_file_info *fi) {
+static int open_chaosfs(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
 /* Função chamada quando o FUSE deseja ler dados de um arquivo
    indicado pelo parâmetro path. Se você implementou a função
-   open_brisafs, o uso do parâmetro fi é necessário. A função lê size
+   open_chaosfs, o uso do parâmetro fi é necessário. A função lê size
    bytes, a partir do offset do arquivo path no buffer buf. */
-static int read_brisafs(const char *path, char *buf, size_t size,
+static int read_chaosfs(const char *path, char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi) {
 
     //Procura o arquivo
@@ -167,9 +167,9 @@ static int read_brisafs(const char *path, char *buf, size_t size,
 
 /* Função chamada quando o FUSE deseja escrever dados em um arquivo
    indicado pelo parâmetro path. Se você implementou a função
-   open_brisafs, o uso do parâmetro fi é necessário. A função escreve
+   open_chaosfs, o uso do parâmetro fi é necessário. A função escreve
    size bytes, a partir do offset do arquivo path no buffer buf. */
-static int write_brisafs(const char *path, const char *buf, size_t size,
+static int write_chaosfs(const char *path, const char *buf, size_t size,
                          off_t offset, struct fuse_file_info *fi) {
 
     for (int i = 0; i < MAX_FILES; i++) {
@@ -198,7 +198,7 @@ static int write_brisafs(const char *path, const char *buf, size_t size,
 
 /* Altera o tamanho do arquivo apontado por path para tamanho size
    bytes */
-static int truncate_brisafs(const char *path, off_t size, struct fuse_file_info *fi) {
+static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info *fi) {
     if (size > TAM_BLOCO)
         return EFBIG;
 
@@ -228,7 +228,7 @@ static int truncate_brisafs(const char *path, off_t size, struct fuse_file_info 
 
 /* Cria um arquivo comum ou arquivo especial (links, pipes, ...) no caminho
    path com o modo mode*/
-static int mknod_brisafs(const char *path, mode_t mode, dev_t rdev) {
+static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
     if (S_ISREG(mode)) { //So aceito criar arquivos normais
         //Cuidado! Não seta os direitos corretamente! Veja "man 2
         //mknod" para instruções de como pegar os direitos e demais
@@ -249,7 +249,7 @@ static int mknod_brisafs(const char *path, mode_t mode, dev_t rdev) {
 /* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
    retorna quando todas as escritas pendentes tiverem sido
    persistidas */
-static int fsync_brisafs(const char *path, int isdatasync,
+static int fsync_chaosfs(const char *path, int isdatasync,
                          struct fuse_file_info *fi) {
     //Como tudo é em memória, não é preciso fazer nada.
     // Cuidado! Você vai precisar jogar tudo que está só em memóri no disco
@@ -257,7 +257,7 @@ static int fsync_brisafs(const char *path, int isdatasync,
 }
 
 /* Ajusta a data de acesso e modificação do arquivo com resolução de nanosegundos */
-static int utimens_brisafs(const char *path, const struct timespec ts[2],
+static int utimens_chaosfs(const char *path, const struct timespec ts[2],
                            struct fuse_file_info *fi) {
     // Cuidado! O sistema BrisaFS não aceita horários. O seu deverá aceitar!
     return 0;
@@ -266,7 +266,7 @@ static int utimens_brisafs(const char *path, const struct timespec ts[2],
 
 /* Cria e abre o arquivo apontado por path. Se o arquivo não existir
    cria e depois abre*/
-static int create_brisafs(const char *path, mode_t mode,
+static int create_chaosfs(const char *path, mode_t mode,
                           struct fuse_file_info *fi) {
     //Cuidado! Está ignorando todos os parâmetros. O seu deverá
     //cuidar disso Veja "man 2 mknod" para instruções de como pegar os
@@ -284,27 +284,27 @@ static int create_brisafs(const char *path, mode_t mode,
 
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
-static struct fuse_operations fuse_brisafs = {
-                                              .create = create_brisafs,
-                                              .fsync = fsync_brisafs,
-                                              .getattr = getattr_brisafs,
-                                              .mknod = mknod_brisafs,
-                                              .open = open_brisafs,
-                                              .read = read_brisafs,
-                                              .readdir = readdir_brisafs,
-                                              .truncate	= truncate_brisafs,
-                                              .utimens = utimens_brisafs,
-                                              .write = write_brisafs
+static struct fuse_operations fuse_chaosfs = {
+                                              .create = create_chaosfs,
+                                              .fsync = fsync_chaosfs,
+                                              .getattr = getattr_chaosfs,
+                                              .mknod = mknod_chaosfs,
+                                              .open = open_chaosfs,
+                                              .read = read_chaosfs,
+                                              .readdir = readdir_chaosfs,
+                                              .truncate	= truncate_chaosfs,
+                                              .utimens = utimens_chaosfs,
+                                              .write = write_chaosfs
 };
 
 int main(int argc, char *argv[]) {
 
-    printf("Iniciando o BrisaFS...\n");
+    printf("Iniciando o ChaosFS...\n");
     printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
     printf("\t Tamanho do inode: %lu\n", sizeof(inode));
     printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
 
-    init_brisafs();
+    init_chaosfs();
 
-    return fuse_main(argc, argv, &fuse_brisafs, NULL);
+    return fuse_main(argc, argv, &fuse_chaosfs, NULL);
 }
