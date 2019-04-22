@@ -10,11 +10,10 @@
 
 Informações sobre o projeto, o enunciado, datas de entrega, avaliação em: http://professor.ufabc.edu.br/~e.francesquini/2019.q1.so/projeto
 
+# ChaosFS
 
-![BrisaFS](figs/brisa.jpg "Mike Bitzenhofer (CC BY-NC-ND 2.0)")
-
-
-
-----
-
-Crédito imagem: Mike Bitzenhofer (CC BY-NC-ND 2.0)
+Autores:
+Gabriel Martins Trettel
+Bruno Aristimunha Pinto
+Eric Shimizu Karbstein
+Jair Edipo
