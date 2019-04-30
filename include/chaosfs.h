@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <inttypes.h>
 // Inclui a bibliteca fuse, base para o funcionamento do nosso FS
 #include <fuse.h>

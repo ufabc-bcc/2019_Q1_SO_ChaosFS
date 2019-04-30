@@ -82,6 +82,8 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
                            struct fuse_file_info *fi) {
     memset(stbuf, 0, sizeof(struct stat));
 
+    stbuf->st_uid = getuid();
+    stbuf->st_gid = getgid();
     //Diretório raiz
     if (strcmp(path, "/") == 0) {
         stbuf->st_mode = S_IFDIR | 0755;
