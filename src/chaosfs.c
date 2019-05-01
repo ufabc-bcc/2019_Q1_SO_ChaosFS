@@ -49,14 +49,19 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
     while (mnome[0] != '\0' && mnome[0] == '/')
         mnome++;
 
+    time_t times = time(NULL);
+    if (times == -1)
+        times = 0;
+
+
     strcpy(superbloco[isuperbloco].nome, mnome);
     superbloco[isuperbloco].direitos = direitos;
     superbloco[isuperbloco].tamanho = tamanho;
     superbloco[isuperbloco].bloco = bloco;
     superbloco[isuperbloco].uid = getuid();
     superbloco[isuperbloco].gid = getgid();
-    superbloco[isuperbloco].data_acesso   = time(NULL);
-    superbloco[isuperbloco].data_modific  = time(NULL);
+    superbloco[isuperbloco].data_acesso   = times;
+    superbloco[isuperbloco].data_modific  = times;
 
     if (conteudo != NULL)
         memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
@@ -177,6 +182,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
         }
         if (compara_nome(path, superbloco[i].nome)) {//achou!
             // Cuidado! Não checa se a quantidade de bytes cabe no arquivo!
+            
             memcpy(disco + DISCO_OFFSET(superbloco[i].bloco) + offset, buf, size);
             superbloco[i].tamanho = offset + size;
             superbloco[i].data_modific = time(NULL);
@@ -295,7 +301,8 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
         if (superbloco[i].bloco == 0) //bloco vazio
             continue;
         if (compara_nome(path, superbloco[i].nome)) { //achou!
-            superbloco[i].data_modific = ts->tv_nsec;
+            superbloco[i].data_modific = time(NULL);
+            return 0;
         }
     }
 
