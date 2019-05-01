@@ -257,7 +257,7 @@ static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *f
         }
     }
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
@@ -272,7 +272,7 @@ static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_fil
         }
     }
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 /* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
@@ -299,7 +299,7 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
         }
     }
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 
