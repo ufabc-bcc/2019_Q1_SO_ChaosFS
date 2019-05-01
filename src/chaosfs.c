@@ -69,22 +69,6 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
         memset(disco + DISCO_OFFSET(bloco), 0, tamanho);
 }
 
-
-/* Para persistir o FS em um disco representado por um arquivo, talvez
-   seja necessário "formatar" o arquivo pegando o seu tamanho e
-   inicializando todas as posições (ou apenas o(s) superbloco(s))
-   com os valores apropriados */
-void init_chaosfs() {
-    disco = calloc (MAX_BLOCOS, TAM_BLOCO);
-    superbloco = (inode*) disco; //posição 0
-    //Cria um arquivo na mão de boas vindas
-    char *nome = "UFABC SO 2019.txt";
-    //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
-    char *conteudo = "Adoro as aulas de SO da UFABC!\n";
-    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
-}
-
 /* A função getattr_chaosfs devolve os metadados de um arquivo cujo
    caminho é dado por path. Devolve 0 em caso de sucesso ou um código
    de erro. Os atributos são devolvidos pelo parâmetro stbuf */
@@ -253,13 +237,13 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
    path com o modo mode*/
 static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
     if (S_ISREG(mode)) { //So aceito criar arquivos normais
-        //Cuidado! Não seta os direitos corretamente! Veja "man 2
+        //Veja "man 2
         //mknod" para instruções de como pegar os direitos e demais
         //informações sobre os arquivos
         //Acha o primeiro bloco vazio
         for (int i = 0; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + 1, NULL);
+                preenche_bloco (i, path, mode, 0, i + 1, NULL);
                 return 0;
             }
         }
@@ -268,6 +252,34 @@ static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
     return EINVAL;
 }
 
+static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *fi) {
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].direitos = mode;
+            return 0;
+        }
+    }
+
+    return -ENOENT;
+}
+
+static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].uid = uid;
+            superbloco[i].gid = gid;
+            return 0;
+        }
+    }
+
+    return -ENOENT;
+}
 
 /* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
    retorna quando todas as escritas pendentes tiverem sido
@@ -294,7 +306,7 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
         }
     }
 
-    return -errno;
+    return -ENOENT;
 }
 
 
@@ -302,33 +314,49 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
    cria e depois abre*/
 static int create_chaosfs(const char *path, mode_t mode,
                           struct fuse_file_info *fi) {
-    //Cuidado! Está ignorando todos os parâmetros. O seu deverá
-    //cuidar disso Veja "man 2 mknod" para instruções de como pegar os
+    //Veja "man 2 mknod" para instruções de como pegar os
     //direitos e demais informações sobre os arquivos Acha o primeiro
     //bloco vazio
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + 1, NULL);
+            preenche_bloco (i, path, mode, 0, i + 1, NULL);
             return 0;
         }
     }
     return ENOSPC;
 }
 
+/* Para persistir o FS em um disco representado por um arquivo, talvez
+   seja necessário "formatar" o arquivo pegando o seu tamanho e
+   inicializando todas as posições (ou apenas o(s) superbloco(s))
+   com os valores apropriados */
+void init_chaosfs() {
+    disco = calloc (MAX_BLOCOS, TAM_BLOCO);
+    superbloco = (inode*) disco; //posição 0
+    //Cria um arquivo na mão de boas vindas
+    char *nome = "UFABC SO 2019.txt";
+    //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
+    char *conteudo = "Adoro as aulas de SO da UFABC!\n";
+    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
+    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
+    // create_chaosfs(nome, 0777, NULL);
+}
 
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
 static struct fuse_operations fuse_chaosfs = {
-                                            .create = create_chaosfs,
-                                            .fsync = fsync_chaosfs,
-                                            .getattr = getattr_chaosfs,
-                                            .mknod = mknod_chaosfs,
-                                            .open = open_chaosfs,
-                                            .read = read_chaosfs,
-                                            .readdir = readdir_chaosfs,
-                                            .truncate	= truncate_chaosfs,
-                                            .utimens = utimens_chaosfs,
-                                            .write = write_chaosfs
+                                              .create = create_chaosfs,
+                                              .fsync = fsync_chaosfs,
+                                              .getattr = getattr_chaosfs,
+                                              .mknod = mknod_chaosfs,
+                                              .chmod = chmod_chaosfs,
+                                              .chown = chown_chaosfs,
+                                              .open = open_chaosfs,
+                                              .read = read_chaosfs,
+                                              .readdir = readdir_chaosfs,
+                                              .truncate	= truncate_chaosfs,
+                                              .utimens = utimens_chaosfs,
+                                              .write = write_chaosfs
 };
 
 int main(int argc, char *argv[]) {
