@@ -27,8 +27,8 @@
 
 #define FUSE_USE_VERSION 31
 
-#include "chaosfs.h"
-#include "utils.h"
+#include "../include/chaosfs.h"
+#include "utils.c"
 
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
@@ -55,6 +55,9 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
     superbloco[isuperbloco].bloco = bloco;
     superbloco[isuperbloco].uid = getuid();
     superbloco[isuperbloco].gid = getgid();
+    superbloco[isuperbloco].data_acesso   = time(NULL);
+    superbloco[isuperbloco].data_modific  = time(NULL);
+
     if (conteudo != NULL)
         memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
     else
@@ -100,10 +103,13 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
             stbuf->st_nlink = 1;
             stbuf->st_size = superbloco[i].tamanho;
 
-            // Pega id do usuario e do grupo que o arquivo pertence
+            // Pega id do usuario e do grupo que o arquivo pertence 
             stbuf->st_uid = superbloco[i].uid;
             stbuf->st_gid = superbloco[i].gid;
-
+            
+            // Pega a ultima data de modificação e acesso
+            stbuf->st_mtime = superbloco[i].data_modific;
+            stbuf->st_atime = superbloco[i].data_acesso;
             return 0; //OK, arquivo encontrado
         }
     }
@@ -153,6 +159,8 @@ static int read_chaosfs(const char *path, char *buf, size_t size,
             continue;
         if (compara_nome(path, superbloco[i].nome)) {//achou!
             size_t len = superbloco[i].tamanho;
+            superbloco[i].data_acesso = time(NULL);
+
             if (offset >= len) {//tentou ler além do fim do arquivo
                 return 0;
             }
@@ -187,9 +195,11 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
             // Cuidado! Não checa se a quantidade de bytes cabe no arquivo!
             memcpy(disco + DISCO_OFFSET(superbloco[i].bloco) + offset, buf, size);
             superbloco[i].tamanho = offset + size;
+            superbloco[i].data_modific = time(NULL);
             return size;
         }
     }
+
     //Se chegou aqui não achou. Entao cria
     //Acha o primeiro bloco vazio
     for (int i = 0; i < MAX_FILES; i++) {
@@ -263,11 +273,21 @@ static int fsync_chaosfs(const char *path, int isdatasync,
     return 0;
 }
 
+
 /* Ajusta a data de acesso e modificação do arquivo com resolução de nanosegundos */
 static int utimens_chaosfs(const char *path, const struct timespec ts[2],
                            struct fuse_file_info *fi) {
-    // Cuidado! O sistema BrisaFS não aceita horários. O seu deverá aceitar!
-    return 0;
+    
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].data_modific = ts->tv_nsec;
+        }
+    }
+
+    return -errno;
 }
 
 

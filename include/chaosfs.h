@@ -7,10 +7,12 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <time.h>
 // Inclui a bibliteca fuse, base para o funcionamento do nosso FS
 #include <fuse.h>
 #include <string.h>
 #include <errno.h>
+
 
 // Data types
 // Não é obrigado a usar
@@ -63,4 +65,6 @@ typedef struct {
     u16 direitos;
     u16 tamanho;
     u16 bloco;
+    time_t data_acesso;
+    time_t data_modific;
 } inode;
