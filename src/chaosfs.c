@@ -283,6 +283,7 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
             continue;
         if (compara_nome(path, superbloco[i].nome)) { //achou!
             superbloco[i].data_modific = time(NULL);
+            return 0;
         }
     }
 
