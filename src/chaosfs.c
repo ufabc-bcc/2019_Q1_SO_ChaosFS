@@ -27,8 +27,8 @@
 
 #define FUSE_USE_VERSION 31
 
-#include "../include/chaosfs.h"
-#include "utils.c"
+#include "chaosfs.h"
+#include "utils.h"
 
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
@@ -103,10 +103,10 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
             stbuf->st_nlink = 1;
             stbuf->st_size = superbloco[i].tamanho;
 
-            // Pega id do usuario e do grupo que o arquivo pertence 
+            // Pega id do usuario e do grupo que o arquivo pertence
             stbuf->st_uid = superbloco[i].uid;
             stbuf->st_gid = superbloco[i].gid;
-            
+
             // Pega a ultima data de modificação e acesso
             stbuf->st_mtime = superbloco[i].data_modific;
             stbuf->st_atime = superbloco[i].data_acesso;
@@ -277,7 +277,7 @@ static int fsync_chaosfs(const char *path, int isdatasync,
 /* Ajusta a data de acesso e modificação do arquivo com resolução de nanosegundos */
 static int utimens_chaosfs(const char *path, const struct timespec ts[2],
                            struct fuse_file_info *fi) {
-    
+
     // Procura o superbloco do arquivo
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) //bloco vazio
