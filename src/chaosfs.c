@@ -53,9 +53,10 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
     superbloco[isuperbloco].direitos = direitos;
     superbloco[isuperbloco].tamanho = tamanho;
     superbloco[isuperbloco].bloco = bloco;
+    superbloco[isuperbloco].uid = getuid();
+    superbloco[isuperbloco].gid = getgid();
     superbloco[isuperbloco].data_acesso   = time(NULL);
     superbloco[isuperbloco].data_modific  = time(NULL);
-
 
     if (conteudo != NULL)
         memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
@@ -101,6 +102,12 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
             stbuf->st_mode = S_IFREG | superbloco[i].direitos;
             stbuf->st_nlink = 1;
             stbuf->st_size = superbloco[i].tamanho;
+
+            // Pega id do usuario e do grupo que o arquivo pertence 
+            stbuf->st_uid = superbloco[i].uid;
+            stbuf->st_gid = superbloco[i].gid;
+            
+            // Pega a ultima data de modificação e acesso
             stbuf->st_mtime = superbloco[i].data_modific;
             stbuf->st_atime = superbloco[i].data_acesso;
             return 0; //OK, arquivo encontrado
