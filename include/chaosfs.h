@@ -58,6 +58,8 @@ typedef char byte;
    por exemplo nome, direitos, tamanho, bloco inicial, ... */
 typedef struct {
     char nome[250];
+    uid_t uid;
+    gid_t gid;
     u16 direitos;
     u16 tamanho;
     u16 bloco;

@@ -53,6 +53,8 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
     superbloco[isuperbloco].direitos = direitos;
     superbloco[isuperbloco].tamanho = tamanho;
     superbloco[isuperbloco].bloco = bloco;
+    superbloco[isuperbloco].uid = getuid();
+    superbloco[isuperbloco].gid = getgid();
     if (conteudo != NULL)
         memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
     else
@@ -82,8 +84,6 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
                            struct fuse_file_info *fi) {
     memset(stbuf, 0, sizeof(struct stat));
 
-    stbuf->st_uid = getuid();
-    stbuf->st_gid = getgid();
     //Diretório raiz
     if (strcmp(path, "/") == 0) {
         stbuf->st_mode = S_IFDIR | 0755;
@@ -99,6 +99,11 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
             stbuf->st_mode = S_IFREG | superbloco[i].direitos;
             stbuf->st_nlink = 1;
             stbuf->st_size = superbloco[i].tamanho;
+
+            // Pega id do usuario e do grupo que o arquivo pertence
+            stbuf->st_uid = superbloco[i].uid;
+            stbuf->st_gid = superbloco[i].gid;
+
             return 0; //OK, arquivo encontrado
         }
     }
