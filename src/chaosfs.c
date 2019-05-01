@@ -259,6 +259,22 @@ static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *f
 
     return ENOENT;
 }
+
+static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].uid = uid;
+            superbloco[i].gid = gid;
+            return 0;
+        }
+    }
+
+    return ENOENT;
+}
+
 /* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
    retorna quando todas as escritas pendentes tiverem sido
    persistidas */
@@ -283,7 +299,7 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
         }
     }
 
-    return -errno;
+    return ENOENT;
 }
 
 
@@ -327,6 +343,7 @@ static struct fuse_operations fuse_chaosfs = {
                                               .getattr = getattr_chaosfs,
                                               .mknod = mknod_chaosfs,
                                               .chmod = chmod_chaosfs,
+                                              .chown = chown_chaosfs,
                                               .open = open_chaosfs,
                                               .read = read_chaosfs,
                                               .readdir = readdir_chaosfs,
