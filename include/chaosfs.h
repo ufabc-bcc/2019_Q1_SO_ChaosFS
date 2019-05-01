@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <time.h>
 // Inclui a bibliteca fuse, base para o funcionamento do nosso FS
@@ -59,6 +60,8 @@ typedef char byte;
    por exemplo nome, direitos, tamanho, bloco inicial, ... */
 typedef struct {
     char nome[250];
+    uid_t uid;
+    gid_t gid;
     u16 direitos;
     u16 tamanho;
     u16 bloco;
