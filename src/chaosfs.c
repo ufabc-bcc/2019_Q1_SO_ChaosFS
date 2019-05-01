@@ -41,6 +41,7 @@ inode *superbloco;
 
 #define DISCO_OFFSET(B) (B * TAM_BLOCO)
 
+
 /* Preenche os campos do superbloco de índice isuperbloco */
 void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
                      uint16_t tamanho, uint16_t bloco, const byte *conteudo) {
@@ -77,7 +78,7 @@ void init_chaosfs() {
     //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
     char *conteudo = "Adoro as aulas de SO da UFABC!\n";
     //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
+    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + MAX_SUPERBLOCOS, (byte*)conteudo);
 }
 
 /* A função getattr_chaosfs devolve os metadados de um arquivo cujo
@@ -204,7 +205,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
     //Acha o primeiro bloco vazio
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, size, i + 1, buf);
+            preenche_bloco (i, path, DIREITOS_PADRAO, size, i + MAX_SUPERBLOCOS, buf);
             return size;
         }
     }
@@ -235,7 +236,7 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
         //Acha o primeiro bloco vazio
         for (int i = 0; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, size, i + 1, NULL);
+                preenche_bloco (i, path, DIREITOS_PADRAO, size, i + MAX_SUPERBLOCOS, NULL);
                 break;
             }
         }
@@ -253,7 +254,7 @@ static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
         //Acha o primeiro bloco vazio
         for (int i = 0; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + 1, NULL);
+                preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + MAX_SUPERBLOCOS, NULL);
                 return 0;
             }
         }
@@ -301,7 +302,7 @@ static int create_chaosfs(const char *path, mode_t mode,
     //bloco vazio
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + 1, NULL);
+            preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + MAX_SUPERBLOCOS, NULL);
             return 0;
         }
     }

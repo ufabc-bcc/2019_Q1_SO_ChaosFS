@@ -43,18 +43,21 @@ typedef size_t Size;
 
 typedef char byte;
 
+#define INODE_SIZE sizeof(inode)
 /* Tamnanho do bloco do dispositivo */
 #define TAM_BLOCO 4096
 /* A atual implementação utiliza apenas um bloco para todos os inodes
    de todos os arquivos do sistema. Ou seja, cria um limite rígido no
    número de arquivos e tamanho do dispositivo. */
-#define MAX_FILES (TAM_BLOCO / sizeof(inode))
+#define MAX_FILES 1024
 /* 1 para o superbloco e o resto para os arquivos. Os arquivos nesta
    implementação também tem apenas 1 bloco no máximo de tamanho. */
 #define MAX_BLOCOS (1 + MAX_FILES)
 /* Parte da sua tarefa será armazenar e recuperar corretamente os
    direitos dos arquivos criados */
 #define DIREITOS_PADRAO 0644
+
+#define MAX_SUPERBLOCOS 1024*sizeof(inode)/TAM_BLOCO
 
 /* Um inode guarda todas as informações relativas a um arquivo como
    por exemplo nome, direitos, tamanho, bloco inicial, ... */
