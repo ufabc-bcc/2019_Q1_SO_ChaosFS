@@ -24,7 +24,7 @@ release: $(CODES)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -g $(CODES) $(MAIN) -o $(TARGET) $(INCLUDE) `pkg-config fuse3 --cflags --libs`
 	@mv $(TARGET) build/
-	@printf "\e[92mBuilt $@\e[0m\n"
+	@printf "\e[92mBuilt $(TARGET)\e[0m\n"
 
 debug: $(CODES)
 	@printf "\e[32mDebug building $(TARGET)\e[0m\n"
