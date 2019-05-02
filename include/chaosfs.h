@@ -50,14 +50,17 @@ typedef char byte;
    de todos os arquivos do sistema. Ou seja, cria um limite rígido no
    número de arquivos e tamanho do dispositivo. */
 #define MAX_FILES 1024
-/* 1 para o superbloco e o resto para os arquivos. Os arquivos nesta
-   implementação também tem apenas 1 bloco no máximo de tamanho. */
-#define MAX_BLOCOS (1 + MAX_FILES)
+/* Quantidade necessária para o superbloco juntamente com a quantidade
+   máxima de arquivos. Os arquivos nesta implementação também tem 
+   apenas 1 bloco no máximo de tamanho. */
+#define MAX_BLOCOS (QTD_BLOCOS_SUPERBLOCO + MAX_FILES)
 /* Parte da sua tarefa será armazenar e recuperar corretamente os
    direitos dos arquivos criados */
 #define DIREITOS_PADRAO 0644
-
-#define MAX_SUPERBLOCOS 1024*sizeof(inode)/TAM_BLOCO
+/* Formula utilizada para calcular a quantidade de blocos ocupados 
+   pelosuperbloco e que são necessários para criar, pelo menos, 
+   1024 arquivos. */
+#define QTD_BLOCOS_SUPERBLOCO (1024*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
 
 /* Um inode guarda todas as informações relativas a um arquivo como
    por exemplo nome, direitos, tamanho, bloco inicial, ... */
