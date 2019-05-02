@@ -364,7 +364,7 @@ int main(int argc, char *argv[]) {
     printf("Iniciando o ChaosFS...\n");
     printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
     printf("\t Tamanho do inode: %lu\n", sizeof(inode));
-    printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
+    printf("\t Número máximo de arquivos: %d\n", MAX_FILES);
 
     init_chaosfs();
 

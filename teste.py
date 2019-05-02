@@ -10,7 +10,7 @@ if dir[-1] != '/':
 
 for x in range(int(size)):
     name = f"{bin(x)[2:]:>15}".replace(' ', '0')
-    
+
     f = open(dir + name, 'w')
     f.writelines(f"aaa {x}")
     f.close()
