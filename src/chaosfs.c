@@ -70,22 +70,6 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
         memset(disco + DISCO_OFFSET(bloco), 0, tamanho);
 }
 
-
-/* Para persistir o FS em um disco representado por um arquivo, talvez
-   seja necessário "formatar" o arquivo pegando o seu tamanho e
-   inicializando todas as posições (ou apenas o(s) superbloco(s))
-   com os valores apropriados */
-void init_chaosfs() {
-    disco = calloc (MAX_BLOCOS, TAM_BLOCO);
-    superbloco = (inode*) disco; //posição 0
-    //Cria um arquivo na mão de boas vindas
-    char *nome = "UFABC SO 2019.txt";
-    //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
-    char *conteudo = "Adoro as aulas de SO da UFABC!\n";
-    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + MAX_SUPERBLOCOS, (byte*)conteudo);
-}
-
 /* A função getattr_chaosfs devolve os metadados de um arquivo cujo
    caminho é dado por path. Devolve 0 em caso de sucesso ou um código
    de erro. Os atributos são devolvidos pelo parâmetro stbuf */
@@ -199,7 +183,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
         }
         if (compara_nome(path, superbloco[i].nome)) {//achou!
             // Cuidado! Não checa se a quantidade de bytes cabe no arquivo!
-            
+
             memcpy(disco + DISCO_OFFSET(superbloco[i].bloco) + offset, buf, size);
             superbloco[i].tamanho = offset + size;
             superbloco[i].data_modific = time(NULL);
@@ -355,8 +339,7 @@ void init_chaosfs() {
     //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
     char *conteudo = "Adoro as aulas de SO da UFABC!\n";
     //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
-    // create_chaosfs(nome, 0777, NULL);
+    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + MAX_SUPERBLOCOS, (byte*)conteudo);
 }
 
 /* Esta estrutura contém os ponteiros para as operações implementadas

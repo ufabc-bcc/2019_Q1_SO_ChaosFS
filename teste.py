@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 
 size = sys.argv[1]
