@@ -384,6 +384,26 @@ static int create_chaosfs(const char *path, mode_t mode,
     return ENOSPC;
 }
 
+/*
+Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
+*/
+static int unlink_chaosfs(const char *path){
+
+	for (int i = 0; i < MAX_FILES; i++) {
+
+        if (superbloco[i].bloco == 0) {//bloco vazio
+        	continue;
+        }
+        else 
+        {
+        	if (compara_nome(path, superbloco[i].nome)) { //achou!
+        		superbloco[i].bloco = 0;
+        		return 0;
+        	}
+        }
+    }
+    return 0;
+
 void destroy_chaosfs() {
     printf("\n\n SAINDO DO FS \n\n");
 }
@@ -431,20 +451,20 @@ int init_chaosfs() {
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
 static struct fuse_operations fuse_chaosfs = {
-    .create = create_chaosfs,
-    .fsync = fsync_chaosfs,
-    .getattr = getattr_chaosfs,
-    .mknod = mknod_chaosfs,
-    .chmod = chmod_chaosfs,
-    .chown = chown_chaosfs,
-    .open = open_chaosfs,
-    .read = read_chaosfs,
-    .readdir = readdir_chaosfs,
-    .truncate	= truncate_chaosfs,
-    .utimens = utimens_chaosfs,
-    .write = write_chaosfs,
-    .destroy = destroy_chaosfs
-};
+                                              .create = create_chaosfs,
+                                              .fsync = fsync_chaosfs,
+                                              .getattr = getattr_chaosfs,
+                                              .mknod = mknod_chaosfs,
+                                              .chmod = chmod_chaosfs,
+                                              .chown = chown_chaosfs,
+                                              .open = open_chaosfs,
+                                              .read = read_chaosfs,
+                                              .readdir = readdir_chaosfs,
+                                              .truncate	= truncate_chaosfs,
+                                              .utimens = utimens_chaosfs,
+                                              .write = write_chaosfs,
+                                              .unlink = unlink_chaosfs,
+                                            };
 
 int main(int argc, char *argv[]) {
 
