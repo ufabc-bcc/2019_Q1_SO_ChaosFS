@@ -24,40 +24,11 @@
  *
  */
 
-
 #define FUSE_USE_VERSION 31
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h>
-/* Inclui a bibliteca fuse, base para o funcionamento do nosso FS */
-#include <fuse.h>
-#include <string.h>
-#include <errno.h>
-
-/* Tamnanho do bloco do dispositivo */
-#define TAM_BLOCO 4096
-/* A atual implementação utiliza apenas um bloco para todos os inodes
-   de todos os arquivos do sistema. Ou seja, cria um limite rígido no
-   número de arquivos e tamanho do dispositivo. */
-#define MAX_FILES (TAM_BLOCO / sizeof(inode))
-/* 1 para o superbloco e o resto para os arquivos. Os arquivos nesta
-   implementação também tem apenas 1 bloco no máximo de tamanho. */
-#define MAX_BLOCOS (1 + MAX_FILES)
-/* Parte da sua tarefa será armazenar e recuperar corretamente os
-   direitos dos arquivos criados */
-#define DIREITOS_PADRAO 0644
-
-typedef char byte;
-
-/* Um inode guarda todas as informações relativas a um arquivo como
-   por exemplo nome, direitos, tamanho, bloco inicial, ... */
-typedef struct {
-    char nome[250];
-    uint16_t direitos;
-    uint16_t tamanho;
-    uint16_t bloco;
-} inode;
+#include "chaosfs.h"
+// #include "../include/common.h"
+#include "utils.h"
 
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
@@ -68,7 +39,68 @@ byte *disco;
 //guarda os inodes dos arquivos
 inode *superbloco;
 
+char *dir_copy = "/tmp/chaos.fs";
+// char *dir_copy = "/tmp/teste";
+
 #define DISCO_OFFSET(B) (B * TAM_BLOCO)
+
+
+/* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
+   retorna quando todas as escritas pendentes tiverem sido
+   persistidas */
+static int fsync_chaosfs(const char *path, int isdatasync,
+                         struct fuse_file_info *fi) {
+    //Como tudo é em memória, não é preciso fazer nada.
+    // Cuidado! Você vai precisar jogar tudo que está só em memória no disco
+
+    FILE *fd= fopen(dir_copy, "wb");
+    if (fd < 0) {
+        perror("\n\nErro no open");
+        fflush(stdout);
+
+        return -1;
+    }
+
+    if (fwrite(disco, TAM_BLOCO, MAX_BLOCOS, fd) <= 0) {
+        perror("\n\nDeu erro tentando salvar o arquivo\n\n");
+        fflush(stdout);
+
+        return -1;
+    } else {
+        printf("\n\nSALVO COM SUCESSO\n\n");
+        fflush(stdout);
+    }
+    close(fd);
+
+
+    return 0;
+}
+
+
+int carrega_disco_chaosfs() {
+    FILE *fd= fopen(dir_copy, "rb");
+    if (fd < 0) {
+        perror("\n\nErro no open");
+        fflush(stdout);
+
+        return -1;
+    }
+
+    if (fread(disco, TAM_BLOCO, MAX_BLOCOS, fd) <= 0) {
+        perror("\n\nDeu erro tentando carregar o FS\n\n");
+        fflush(stdout);
+        return -1;
+
+    } else {
+        printf("\n\nFS CARREGADO COM SUCESSO\n\n");
+        fflush(stdout);
+    }
+    close(fd);
+
+
+    return 0;
+}
+
 
 /* Preenche os campos do superbloco de índice isuperbloco */
 void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
@@ -78,50 +110,30 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
     while (mnome[0] != '\0' && mnome[0] == '/')
         mnome++;
 
+    time_t times = time(NULL);
+    if (times == -1)
+        times = 0;
+
+
     strcpy(superbloco[isuperbloco].nome, mnome);
     superbloco[isuperbloco].direitos = direitos;
     superbloco[isuperbloco].tamanho = tamanho;
     superbloco[isuperbloco].bloco = bloco;
+    superbloco[isuperbloco].uid = getuid();
+    superbloco[isuperbloco].gid = getgid();
+    superbloco[isuperbloco].data_acesso   = times;
+    superbloco[isuperbloco].data_modific  = times;
+
     if (conteudo != NULL)
         memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
     else
         memset(disco + DISCO_OFFSET(bloco), 0, tamanho);
 }
 
-
-/* Para persistir o FS em um disco representado por um arquivo, talvez
-   seja necessário "formatar" o arquivo pegando o seu tamanho e
-   inicializando todas as posições (ou apenas o(s) superbloco(s))
-   com os valores apropriados */
-void init_brisafs() {
-    disco = calloc (MAX_BLOCOS, TAM_BLOCO);
-    superbloco = (inode*) disco; //posição 0
-    //Cria um arquivo na mão de boas vindas
-    char *nome = "UFABC SO 2019.txt";
-    //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
-    char *conteudo = "Adoro as aulas de SO da UFABC!\n";
-    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1, (byte*)conteudo);
-}
-
-/* Devolve 1 caso representem o mesmo nome e 0 cc */
-int compara_nome (const char *a, const char *b) {
-    char *ma = (char*)a;
-    char *mb = (char*)b;
-    //Joga fora barras iniciais
-    while (ma[0] != '\0' && ma[0] == '/')
-        ma++;
-    while (mb[0] != '\0' && mb[0] == '/')
-        mb++;
-    //Cuidado! Pode ser necessário jogar fora também barras repetidas internas
-    //quando tiver diretórios
-    return strcmp(ma, mb) == 0;
-}
-
-/* A função getattr_brisafs devolve os metadados de um arquivo cujo
+/* A função getattr_chaosfs devolve os metadados de um arquivo cujo
    caminho é dado por path. Devolve 0 em caso de sucesso ou um código
    de erro. Os atributos são devolvidos pelo parâmetro stbuf */
-static int getattr_brisafs(const char *path, struct stat *stbuf,
+static int getattr_chaosfs(const char *path, struct stat *stbuf,
                            struct fuse_file_info *fi) {
     memset(stbuf, 0, sizeof(struct stat));
 
@@ -140,6 +152,14 @@ static int getattr_brisafs(const char *path, struct stat *stbuf,
             stbuf->st_mode = S_IFREG | superbloco[i].direitos;
             stbuf->st_nlink = 1;
             stbuf->st_size = superbloco[i].tamanho;
+
+            // Pega id do usuario e do grupo que o arquivo pertence
+            stbuf->st_uid = superbloco[i].uid;
+            stbuf->st_gid = superbloco[i].gid;
+
+            // Pega a ultima data de modificação e acesso
+            stbuf->st_mtime = superbloco[i].data_modific;
+            stbuf->st_atime = superbloco[i].data_acesso;
             return 0; //OK, arquivo encontrado
         }
     }
@@ -152,7 +172,7 @@ static int getattr_brisafs(const char *path, struct stat *stbuf,
 /* Devolve ao FUSE a estrutura completa do diretório indicado pelo
    parâmetro path. Devolve 0 em caso de sucesso ou um código de
    erro. Atenção ao uso abaixo dos demais parâmetros. */
-static int readdir_brisafs(const char *path, void *buf, fuse_fill_dir_t filler,
+static int readdir_chaosfs(const char *path, void *buf, fuse_fill_dir_t filler,
                            off_t offset, struct fuse_file_info *fi,
                            enum fuse_readdir_flags flags) {
     (void) offset;
@@ -172,15 +192,15 @@ static int readdir_brisafs(const char *path, void *buf, fuse_fill_dir_t filler,
 
 /* Abre um arquivo. Caso deseje controlar os arquvos abertos é preciso
    implementar esta função */
-static int open_brisafs(const char *path, struct fuse_file_info *fi) {
+static int open_chaosfs(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
 /* Função chamada quando o FUSE deseja ler dados de um arquivo
    indicado pelo parâmetro path. Se você implementou a função
-   open_brisafs, o uso do parâmetro fi é necessário. A função lê size
+   open_chaosfs, o uso do parâmetro fi é necessário. A função lê size
    bytes, a partir do offset do arquivo path no buffer buf. */
-static int read_brisafs(const char *path, char *buf, size_t size,
+static int read_chaosfs(const char *path, char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi) {
 
     //Procura o arquivo
@@ -189,6 +209,8 @@ static int read_brisafs(const char *path, char *buf, size_t size,
             continue;
         if (compara_nome(path, superbloco[i].nome)) {//achou!
             size_t len = superbloco[i].tamanho;
+            superbloco[i].data_acesso = time(NULL);
+
             if (offset >= len) {//tentou ler além do fim do arquivo
                 return 0;
             }
@@ -201,6 +223,7 @@ static int read_brisafs(const char *path, char *buf, size_t size,
 
             memcpy(buf,
                    disco + DISCO_OFFSET(superbloco[i].bloco), size);
+            
             return size;
         }
     }
@@ -210,29 +233,38 @@ static int read_brisafs(const char *path, char *buf, size_t size,
 
 /* Função chamada quando o FUSE deseja escrever dados em um arquivo
    indicado pelo parâmetro path. Se você implementou a função
-   open_brisafs, o uso do parâmetro fi é necessário. A função escreve
+   open_chaosfs, o uso do parâmetro fi é necessário. A função escreve
    size bytes, a partir do offset do arquivo path no buffer buf. */
-static int write_brisafs(const char *path, const char *buf, size_t size,
+static int write_chaosfs(const char *path, const char *buf, size_t size,
                          off_t offset, struct fuse_file_info *fi) {
 
+    bool flag = false;
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) { //bloco vazio
             continue;
         }
         if (compara_nome(path, superbloco[i].nome)) {//achou!
             // Cuidado! Não checa se a quantidade de bytes cabe no arquivo!
+
             memcpy(disco + DISCO_OFFSET(superbloco[i].bloco) + offset, buf, size);
             superbloco[i].tamanho = offset + size;
-            return size;
+            superbloco[i].data_modific = time(NULL);
+            flag = true;
         }
     }
+
     //Se chegou aqui não achou. Entao cria
     //Acha o primeiro bloco vazio
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_FILES && !flag; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, size, i + 1, buf);
-            return size;
+            preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, buf);
+            flag = true;
         }
+    }
+
+    if (flag) {
+        fsync_chaosfs(dir_copy, 0, NULL);
+        return size;
     }
 
     return -EIO;
@@ -241,7 +273,7 @@ static int write_brisafs(const char *path, const char *buf, size_t size,
 
 /* Altera o tamanho do arquivo apontado por path para tamanho size
    bytes */
-static int truncate_brisafs(const char *path, off_t size, struct fuse_file_info *fi) {
+static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info *fi) {
     if (size > TAM_BLOCO)
         return EFBIG;
 
@@ -261,7 +293,7 @@ static int truncate_brisafs(const char *path, off_t size, struct fuse_file_info 
         //Acha o primeiro bloco vazio
         for (int i = 0; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, size, i + 1, NULL);
+                preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 break;
             }
         }
@@ -271,15 +303,15 @@ static int truncate_brisafs(const char *path, off_t size, struct fuse_file_info 
 
 /* Cria um arquivo comum ou arquivo especial (links, pipes, ...) no caminho
    path com o modo mode*/
-static int mknod_brisafs(const char *path, mode_t mode, dev_t rdev) {
+static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
     if (S_ISREG(mode)) { //So aceito criar arquivos normais
-        //Cuidado! Não seta os direitos corretamente! Veja "man 2
+        //Veja "man 2
         //mknod" para instruções de como pegar os direitos e demais
         //informações sobre os arquivos
         //Acha o primeiro bloco vazio
         for (int i = 0; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + 1, NULL);
+                preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 return 0;
             }
         }
@@ -288,66 +320,144 @@ static int mknod_brisafs(const char *path, mode_t mode, dev_t rdev) {
     return EINVAL;
 }
 
+static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *fi) {
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].direitos = mode;
+            return 0;
+        }
+    }
 
-/* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
-   retorna quando todas as escritas pendentes tiverem sido
-   persistidas */
-static int fsync_brisafs(const char *path, int isdatasync,
-                         struct fuse_file_info *fi) {
-    //Como tudo é em memória, não é preciso fazer nada.
-    // Cuidado! Você vai precisar jogar tudo que está só em memóri no disco
-    return 0;
+    return -ENOENT;
 }
 
+static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].uid = uid;
+            superbloco[i].gid = gid;
+            return 0;
+        }
+    }
+
+    return -ENOENT;
+}
+
+
 /* Ajusta a data de acesso e modificação do arquivo com resolução de nanosegundos */
-static int utimens_brisafs(const char *path, const struct timespec ts[2],
+static int utimens_chaosfs(const char *path, const struct timespec ts[2],
                            struct fuse_file_info *fi) {
-    // Cuidado! O sistema BrisaFS não aceita horários. O seu deverá aceitar!
-    return 0;
+
+    // Procura o superbloco do arquivo
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) //bloco vazio
+            continue;
+        if (compara_nome(path, superbloco[i].nome)) { //achou!
+            superbloco[i].data_modific = time(NULL);
+            return 0;
+        }
+    }
+
+    return -ENOENT;
 }
 
 
 /* Cria e abre o arquivo apontado por path. Se o arquivo não existir
    cria e depois abre*/
-static int create_brisafs(const char *path, mode_t mode,
+static int create_chaosfs(const char *path, mode_t mode,
                           struct fuse_file_info *fi) {
-    //Cuidado! Está ignorando todos os parâmetros. O seu deverá
-    //cuidar disso Veja "man 2 mknod" para instruções de como pegar os
+    //Veja "man 2 mknod" para instruções de como pegar os
     //direitos e demais informações sobre os arquivos Acha o primeiro
     //bloco vazio
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + 1, NULL);
+            preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
             return 0;
         }
     }
     return ENOSPC;
 }
 
+void destroy_chaosfs() {
+    printf("\n\n SAINDO DO FS \n\n");
+}
+
+/* Para persistir o FS em um disco representado por um arquivo, talvez
+   seja necessário "formatar" o arquivo pegando o seu tamanho e
+   inicializando todas as posições (ou apenas o(s) superbloco(s))
+   com os valores apropriados */
+int init_chaosfs() {
+    printf("\nfile name: %s\n", dir_copy);
+    
+    printf("\nTAMANHO DO DISCO: %ld\n", TAM_DISCO);
+    disco = calloc(MAX_BLOCOS, TAM_BLOCO);
+
+    if (disco <= 0)
+        printf("DISCO NULO");
+    else
+        printf("DISCO NÃO NULO");
+    
+
+    if( access(dir_copy, R_OK ) == -1 ) {
+        printf("\nFile system não existe\n");            
+        fsync_chaosfs(dir_copy, 0, NULL);
+
+    } else {
+        printf("\nFile system existe\n\n");
+        carrega_disco_chaosfs();
+    }
+       
+
+
+    
+    superbloco = (inode*) disco; //posição 0
+    //Cria um arquivo na mão de boas vindas
+    // char *nome = "UFABC SO 2019.txt";
+    //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
+    // char *conteudo = "Adoro as aulas de SO da UFABC!\n";
+    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
+    // preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + QTD_BLOCOS_SUPERBLOCO , (byte*)conteudo);
+
+ 
+    return 1;
+}
 
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
-static struct fuse_operations fuse_brisafs = {
-                                              .create = create_brisafs,
-                                              .fsync = fsync_brisafs,
-                                              .getattr = getattr_brisafs,
-                                              .mknod = mknod_brisafs,
-                                              .open = open_brisafs,
-                                              .read = read_brisafs,
-                                              .readdir = readdir_brisafs,
-                                              .truncate	= truncate_brisafs,
-                                              .utimens = utimens_brisafs,
-                                              .write = write_brisafs
+static struct fuse_operations fuse_chaosfs = {
+    .create = create_chaosfs,
+    .fsync = fsync_chaosfs,
+    .getattr = getattr_chaosfs,
+    .mknod = mknod_chaosfs,
+    .chmod = chmod_chaosfs,
+    .chown = chown_chaosfs,
+    .open = open_chaosfs,
+    .read = read_chaosfs,
+    .readdir = readdir_chaosfs,
+    .truncate	= truncate_chaosfs,
+    .utimens = utimens_chaosfs,
+    .write = write_chaosfs,
+    .destroy = destroy_chaosfs
 };
 
 int main(int argc, char *argv[]) {
 
-    printf("Iniciando o BrisaFS...\n");
+    printf("Iniciando o ChaosFS...\n");
     printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
     printf("\t Tamanho do inode: %lu\n", sizeof(inode));
     printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
 
-    init_brisafs();
+    int retorno = init_chaosfs();
 
-    return fuse_main(argc, argv, &fuse_brisafs, NULL);
+    if (retorno == -1)
+        return 1;
+    // printf("\n\n\n%s\n\n\n", argv[ argc-1 ]);
+
+    return fuse_main(argc, argv, &fuse_chaosfs, NULL);
 }
