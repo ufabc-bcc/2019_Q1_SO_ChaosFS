@@ -437,20 +437,21 @@ int init_chaosfs(bool formatar_disco) {
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
 static struct fuse_operations fuse_chaosfs = {
-                                              .create = create_chaosfs,
-                                              .fsync = fsync_chaosfs,
-                                              .getattr = getattr_chaosfs,
-                                              .mknod = mknod_chaosfs,
-                                              .chmod = chmod_chaosfs,
-                                              .chown = chown_chaosfs,
-                                              .open = open_chaosfs,
-                                              .read = read_chaosfs,
-                                              .readdir = readdir_chaosfs,
-                                              .truncate	= truncate_chaosfs,
-                                              .utimens = utimens_chaosfs,
-                                              .write = write_chaosfs,
-                                              .unlink = unlink_chaosfs,
-                                            };
+    .create = create_chaosfs,
+    .fsync = fsync_chaosfs,
+    .getattr = getattr_chaosfs,
+    .mknod = mknod_chaosfs,
+    .chmod = chmod_chaosfs,
+    .chown = chown_chaosfs,
+    .open = open_chaosfs,
+    .read = read_chaosfs,
+    .readdir = readdir_chaosfs,
+    .truncate	= truncate_chaosfs,
+    .utimens = utimens_chaosfs,
+    .write = write_chaosfs,
+    .unlink = unlink_chaosfs,
+    .destroy = destroy_chaosfs
+};
 
 int main(int argc, char *argv[]) {
 
