@@ -334,6 +334,7 @@ Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando
 static int unlink_chaosfs(const char *path){
 
 	for (int i = 0; i < MAX_FILES; i++) {
+
         if (superbloco[i].bloco == 0) {//bloco vazio
         	continue;
         }
