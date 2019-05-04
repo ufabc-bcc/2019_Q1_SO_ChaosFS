@@ -328,6 +328,26 @@ static int create_chaosfs(const char *path, mode_t mode,
     return ENOSPC;
 }
 
+/*
+Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
+*/
+static int unlink_chaosfs(const char *path){
+
+	for (int i = 0; i < MAX_FILES; i++) {
+        if (superbloco[i].bloco == 0) {//bloco vazio
+        	continue;
+        }
+        else 
+        {
+        	if (compara_nome(path, superbloco[i].nome)) { //achou!
+        		superbloco[i].bloco = 0;
+        		return 0;
+        	}
+        }
+    }
+    return 0;
+}
+
 /* Para persistir o FS em um disco representado por um arquivo, talvez
    seja necessário "formatar" o arquivo pegando o seu tamanho e
    inicializando todas as posições (ou apenas o(s) superbloco(s))
@@ -357,7 +377,8 @@ static struct fuse_operations fuse_chaosfs = {
                                               .readdir = readdir_chaosfs,
                                               .truncate	= truncate_chaosfs,
                                               .utimens = utimens_chaosfs,
-                                              .write = write_chaosfs
+                                              .write = write_chaosfs,
+                                              .unlink = unlink_chaosfs,
 };
 
 int main(int argc, char *argv[]) {
