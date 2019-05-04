@@ -57,4 +57,6 @@ static int create_chaosfs(const char *path, mode_t mode,
                           struct fuse_file_info *fi);
 
 
-int init_chaosfs();
+int init_chaosfs(bool formatar_disco);
+
+void destroy_chaosfs();

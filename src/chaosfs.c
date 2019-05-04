@@ -66,9 +66,6 @@ static int fsync_chaosfs(const char *path, int isdatasync,
         fflush(stdout);
 
         return -1;
-    } else {
-        printf("\n\nSALVO COM SUCESSO\n\n");
-        fflush(stdout);
     }
     close(fd);
 
@@ -80,20 +77,11 @@ static int fsync_chaosfs(const char *path, int isdatasync,
 int carrega_disco_chaosfs() {
     FILE *fd= fopen(dir_copy, "rb");
     if (fd < 0) {
-        perror("\n\nErro no open");
-        fflush(stdout);
-
         return -1;
     }
 
     if (fread(disco, TAM_BLOCO, MAX_BLOCOS, fd) <= 0) {
-        perror("\n\nDeu erro tentando carregar o FS\n\n");
-        fflush(stdout);
         return -1;
-
-    } else {
-        printf("\n\nFS CARREGADO COM SUCESSO\n\n");
-        fflush(stdout);
     }
     close(fd);
 
@@ -384,6 +372,27 @@ static int create_chaosfs(const char *path, mode_t mode,
     return ENOSPC;
 }
 
+/*
+Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
+*/
+static int unlink_chaosfs(const char *path) {
+
+	for (int i = 0; i < MAX_FILES; i++) {
+
+        if (superbloco[i].bloco == 0) {//bloco vazio
+        	continue;
+        }
+        else 
+        {
+        	if (compara_nome(path, superbloco[i].nome)) { //achou!
+        		superbloco[i].bloco = 0;
+        		return 0;
+        	}
+        }
+    }
+    return 0;
+}
+
 void destroy_chaosfs() {
     printf("\n\n SAINDO DO FS \n\n");
 }
@@ -392,38 +401,35 @@ void destroy_chaosfs() {
    seja necessário "formatar" o arquivo pegando o seu tamanho e
    inicializando todas as posições (ou apenas o(s) superbloco(s))
    com os valores apropriados */
-int init_chaosfs() {
-    printf("\nfile name: %s\n", dir_copy);
+int init_chaosfs(bool formatar_disco) {
+    printf("\t- Diretório do arquivo que o FS será salvo : %s\n", dir_copy);
     
-    printf("\nTAMANHO DO DISCO: %ld\n", TAM_DISCO);
+    printf("\t- Tamanho do FS: %ld\n", TAM_DISCO);
     disco = calloc(MAX_BLOCOS, TAM_BLOCO);
 
-    if (disco <= 0)
-        printf("DISCO NULO");
-    else
-        printf("DISCO NÃO NULO");
-    
+    if( access(dir_copy, R_OK ) == -1 || formatar_disco) {
+        if (formatar_disco)
+            printf("\t\t- Formatando FS ... \n");
+        else
+            printf("\t\t- File system não existe em disco... Criadno ...\n");
 
-    if( access(dir_copy, R_OK ) == -1 ) {
-        printf("\nFile system não existe\n");            
-        fsync_chaosfs(dir_copy, 0, NULL);
+
+        if (fsync_chaosfs(dir_copy, 0, NULL) == 0)
+            printf("\t\t\t- FS criado com sucesso\n");
+        else
+            printf("\t\t\t- Erro ao criar o FS\n");
+            
 
     } else {
-        printf("\nFile system existe\n\n");
-        carrega_disco_chaosfs();
+        printf("\t\t- File system existe ... Carregando do disco ...\n");
+        if (carrega_disco_chaosfs() == 0)
+            printf("\t\t\t- FS carregado com sucesso\n");
+        else
+            printf("\t\t\t- Erro ao carregar o FS\n");
+
     }
-       
-
-
-    
+           
     superbloco = (inode*) disco; //posição 0
-    //Cria um arquivo na mão de boas vindas
-    // char *nome = "UFABC SO 2019.txt";
-    //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
-    // char *conteudo = "Adoro as aulas de SO da UFABC!\n";
-    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    // preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + QTD_BLOCOS_SUPERBLOCO , (byte*)conteudo);
-
  
     return 1;
 }
@@ -431,20 +437,20 @@ int init_chaosfs() {
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
 static struct fuse_operations fuse_chaosfs = {
-    .create = create_chaosfs,
-    .fsync = fsync_chaosfs,
-    .getattr = getattr_chaosfs,
-    .mknod = mknod_chaosfs,
-    .chmod = chmod_chaosfs,
-    .chown = chown_chaosfs,
-    .open = open_chaosfs,
-    .read = read_chaosfs,
-    .readdir = readdir_chaosfs,
-    .truncate	= truncate_chaosfs,
-    .utimens = utimens_chaosfs,
-    .write = write_chaosfs,
-    .destroy = destroy_chaosfs
-};
+                                              .create = create_chaosfs,
+                                              .fsync = fsync_chaosfs,
+                                              .getattr = getattr_chaosfs,
+                                              .mknod = mknod_chaosfs,
+                                              .chmod = chmod_chaosfs,
+                                              .chown = chown_chaosfs,
+                                              .open = open_chaosfs,
+                                              .read = read_chaosfs,
+                                              .readdir = readdir_chaosfs,
+                                              .truncate	= truncate_chaosfs,
+                                              .utimens = utimens_chaosfs,
+                                              .write = write_chaosfs,
+                                              .unlink = unlink_chaosfs,
+                                            };
 
 int main(int argc, char *argv[]) {
 
@@ -453,11 +459,16 @@ int main(int argc, char *argv[]) {
     printf("\t Tamanho do inode: %lu\n", sizeof(inode));
     printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
 
-    int retorno = init_chaosfs();
+    bool formatar_disco = false;
+    if (strncmp(argv[(argc-1)], "-ffs", 4) == 0) {
+        argc = argc - 1;
+        formatar_disco = true;
+    }
 
-    if (retorno == -1)
+
+    if (init_chaosfs(formatar_disco) == -1)
         return 1;
-    // printf("\n\n\n%s\n\n\n", argv[ argc-1 ]);
 
+    printf("\n\n");
     return fuse_main(argc, argv, &fuse_chaosfs, NULL);
 }
