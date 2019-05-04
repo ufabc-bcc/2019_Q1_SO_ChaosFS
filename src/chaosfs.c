@@ -30,6 +30,7 @@
 #include "chaosfs.h"
 #include "utils.h"
 
+
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
    deve substituir por um arquivo real e assim persistir os seus

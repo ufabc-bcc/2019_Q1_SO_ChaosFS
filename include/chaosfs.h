@@ -2,75 +2,59 @@
 
 /// Aqui ficam includes, defines e struct definition do FS
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <inttypes.h>
-#include <time.h>
+
 // Inclui a bibliteca fuse, base para o funcionamento do nosso FS
 #include <fuse.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include "common.h"
+
+void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos, uint16_t tamanho, uint16_t bloco, const byte *conteudo);
 
 
-// Data types
-// Não é obrigado a usar
-// Basicamente dando nomes alternativos para tipos já existentes,
-// use apenas se quiser
-typedef int8_t    s8;
-typedef int16_t   s16;
-typedef int32_t   s32;
-typedef int64_t   s64;
+static int getattr_chaosfs(const char *path, struct stat *stbuf,
+                           struct fuse_file_info *fi);
 
-typedef uint8_t   u8;
-typedef uint16_t  u16;
-typedef uint32_t  u32;
-typedef uint64_t  u64;
 
-typedef volatile s8  vs8;
-typedef volatile s16 vs16;
-typedef volatile s32 vs32;
-typedef volatile s64 vs64;
+static int readdir_chaosfs(const char *path, void *buf, fuse_fill_dir_t filler,
+                           off_t offset, struct fuse_file_info *fi,
+                           enum fuse_readdir_flags flags);
 
-typedef volatile u8  vu8;
-typedef volatile u16 vu16;
-typedef volatile u32 vu32;
-typedef volatile u64 vu64;
 
-typedef uintptr_t uPtr;
-typedef size_t Size;
+static int open_chaosfs(const char *path, struct fuse_file_info *fi);
 
-typedef char byte;
 
-#define INODE_SIZE sizeof(inode)
-/* Tamnanho do bloco do dispositivo */
-#define TAM_BLOCO 4096
-/* A atual implementação utiliza apenas um bloco para todos os inodes
-   de todos os arquivos do sistema. Ou seja, cria um limite rígido no
-   número de arquivos e tamanho do dispositivo. */
-#define MAX_FILES 1024
-/* Quantidade necessária para o superbloco juntamente com a quantidade
-   máxima de arquivos. Os arquivos nesta implementação também tem 
-   apenas 1 bloco no máximo de tamanho. */
-#define MAX_BLOCOS (QTD_BLOCOS_SUPERBLOCO + MAX_FILES)
-/* Parte da sua tarefa será armazenar e recuperar corretamente os
-   direitos dos arquivos criados */
-#define DIREITOS_PADRAO 0644
-/* Formula utilizada para calcular a quantidade de blocos ocupados 
-   pelosuperbloco e que são necessários para criar, pelo menos, 
-   1024 arquivos. */
-#define QTD_BLOCOS_SUPERBLOCO (1024*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
+static int read_chaosfs(const char *path, char *buf, size_t size,
+                        off_t offset, struct fuse_file_info *fi);
 
-/* Um inode guarda todas as informações relativas a um arquivo como
-   por exemplo nome, direitos, tamanho, bloco inicial, ... */
-typedef struct {
-    char nome[250];
-    uid_t uid;
-    gid_t gid;
-    u16 direitos;
-    u16 tamanho;
-    u16 bloco;
-    time_t data_acesso;
-    time_t data_modific;
-} inode;
+
+static int write_chaosfs(const char *path, const char *buf, size_t size,
+                         off_t offset, struct fuse_file_info *fi);
+
+
+static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info *fi);
+
+
+static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev);
+
+
+static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *fi);
+
+
+static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_file_info *fi);
+
+
+static int fsync_chaosfs(const char *path, int isdatasync,
+                         struct fuse_file_info *fi);
+
+
+static int utimens_chaosfs(const char *path, const struct timespec ts[2],
+                           struct fuse_file_info *fi);
+
+
+static int create_chaosfs(const char *path, mode_t mode,
+                          struct fuse_file_info *fi);
+
+
+void init_chaosfs();
