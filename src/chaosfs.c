@@ -24,12 +24,11 @@
  *
  */
 
-
 #define FUSE_USE_VERSION 31
 
 #include "chaosfs.h"
+// #include "../include/common.h"
 #include "utils.h"
-
 
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
@@ -40,7 +39,67 @@ byte *disco;
 //guarda os inodes dos arquivos
 inode *superbloco;
 
+char *dir_copy = "/tmp/chaos.fs";
+// char *dir_copy = "/tmp/teste";
+
 #define DISCO_OFFSET(B) (B * TAM_BLOCO)
+
+
+/* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
+   retorna quando todas as escritas pendentes tiverem sido
+   persistidas */
+static int fsync_chaosfs(const char *path, int isdatasync,
+                         struct fuse_file_info *fi) {
+    //Como tudo é em memória, não é preciso fazer nada.
+    // Cuidado! Você vai precisar jogar tudo que está só em memória no disco
+
+    FILE *fd= fopen(dir_copy, "wb");
+    if (fd < 0) {
+        perror("\n\nErro no open");
+        fflush(stdout);
+
+        return -1;
+    }
+
+    if (fwrite(disco, TAM_BLOCO, MAX_BLOCOS, fd) <= 0) {
+        perror("\n\nDeu erro tentando salvar o arquivo\n\n");
+        fflush(stdout);
+
+        return -1;
+    } else {
+        printf("\n\nSALVO COM SUCESSO\n\n");
+        fflush(stdout);
+    }
+    close(fd);
+
+
+    return 0;
+}
+
+
+int carrega_disco_chaosfs() {
+    FILE *fd= fopen(dir_copy, "rb");
+    if (fd < 0) {
+        perror("\n\nErro no open");
+        fflush(stdout);
+
+        return -1;
+    }
+
+    if (fread(disco, TAM_BLOCO, MAX_BLOCOS, fd) <= 0) {
+        perror("\n\nDeu erro tentando carregar o FS\n\n");
+        fflush(stdout);
+        return -1;
+
+    } else {
+        printf("\n\nFS CARREGADO COM SUCESSO\n\n");
+        fflush(stdout);
+    }
+    close(fd);
+
+
+    return 0;
+}
 
 
 /* Preenche os campos do superbloco de índice isuperbloco */
@@ -164,6 +223,7 @@ static int read_chaosfs(const char *path, char *buf, size_t size,
 
             memcpy(buf,
                    disco + DISCO_OFFSET(superbloco[i].bloco), size);
+            
             return size;
         }
     }
@@ -178,6 +238,7 @@ static int read_chaosfs(const char *path, char *buf, size_t size,
 static int write_chaosfs(const char *path, const char *buf, size_t size,
                          off_t offset, struct fuse_file_info *fi) {
 
+    bool flag = false;
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) { //bloco vazio
             continue;
@@ -188,17 +249,22 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
             memcpy(disco + DISCO_OFFSET(superbloco[i].bloco) + offset, buf, size);
             superbloco[i].tamanho = offset + size;
             superbloco[i].data_modific = time(NULL);
-            return size;
+            flag = true;
         }
     }
 
     //Se chegou aqui não achou. Entao cria
     //Acha o primeiro bloco vazio
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_FILES && !flag; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
             preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, buf);
-            return size;
+            flag = true;
         }
+    }
+
+    if (flag) {
+        fsync_chaosfs(dir_copy, 0, NULL);
+        return size;
     }
 
     return -EIO;
@@ -283,16 +349,6 @@ static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_fil
     return -ENOENT;
 }
 
-/* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
-   retorna quando todas as escritas pendentes tiverem sido
-   persistidas */
-static int fsync_chaosfs(const char *path, int isdatasync,
-                         struct fuse_file_info *fi) {
-    //Como tudo é em memória, não é preciso fazer nada.
-    // Cuidado! Você vai precisar jogar tudo que está só em memóri no disco
-    return 0;
-}
-
 
 /* Ajusta a data de acesso e modificação do arquivo com resolução de nanosegundos */
 static int utimens_chaosfs(const char *path, const struct timespec ts[2],
@@ -347,21 +403,49 @@ static int unlink_chaosfs(const char *path){
         }
     }
     return 0;
+
+void destroy_chaosfs() {
+    printf("\n\n SAINDO DO FS \n\n");
 }
 
 /* Para persistir o FS em um disco representado por um arquivo, talvez
    seja necessário "formatar" o arquivo pegando o seu tamanho e
    inicializando todas as posições (ou apenas o(s) superbloco(s))
    com os valores apropriados */
-void init_chaosfs() {
-    disco = calloc (MAX_BLOCOS, TAM_BLOCO);
+int init_chaosfs() {
+    printf("\nfile name: %s\n", dir_copy);
+    
+    printf("\nTAMANHO DO DISCO: %ld\n", TAM_DISCO);
+    disco = calloc(MAX_BLOCOS, TAM_BLOCO);
+
+    if (disco <= 0)
+        printf("DISCO NULO");
+    else
+        printf("DISCO NÃO NULO");
+    
+
+    if( access(dir_copy, R_OK ) == -1 ) {
+        printf("\nFile system não existe\n");            
+        fsync_chaosfs(dir_copy, 0, NULL);
+
+    } else {
+        printf("\nFile system existe\n\n");
+        carrega_disco_chaosfs();
+    }
+       
+
+
+    
     superbloco = (inode*) disco; //posição 0
     //Cria um arquivo na mão de boas vindas
-    char *nome = "UFABC SO 2019.txt";
+    // char *nome = "UFABC SO 2019.txt";
     //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
-    char *conteudo = "Adoro as aulas de SO da UFABC!\n";
+    // char *conteudo = "Adoro as aulas de SO da UFABC!\n";
     //0 está sendo usado pelo superbloco. O primeiro livre é o 1
-    preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + QTD_BLOCOS_SUPERBLOCO , (byte*)conteudo);
+    // preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + QTD_BLOCOS_SUPERBLOCO , (byte*)conteudo);
+
+ 
+    return 1;
 }
 
 /* Esta estrutura contém os ponteiros para as operações implementadas
@@ -380,16 +464,20 @@ static struct fuse_operations fuse_chaosfs = {
                                               .utimens = utimens_chaosfs,
                                               .write = write_chaosfs,
                                               .unlink = unlink_chaosfs,
-};
+                                            };
 
 int main(int argc, char *argv[]) {
 
     printf("Iniciando o ChaosFS...\n");
     printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
     printf("\t Tamanho do inode: %lu\n", sizeof(inode));
-    printf("\t Número máximo de arquivos: %d\n", MAX_FILES);
+    printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
 
-    init_chaosfs();
+    int retorno = init_chaosfs();
+
+    if (retorno == -1)
+        return 1;
+    // printf("\n\n\n%s\n\n\n", argv[ argc-1 ]);
 
     return fuse_main(argc, argv, &fuse_chaosfs, NULL);
 }

@@ -57,4 +57,4 @@ static int create_chaosfs(const char *path, mode_t mode,
                           struct fuse_file_info *fi);
 
 
-void init_chaosfs();
+int init_chaosfs();
