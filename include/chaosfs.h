@@ -51,14 +51,14 @@ typedef char byte;
    número de arquivos e tamanho do dispositivo. */
 #define MAX_FILES 1024
 /* Quantidade necessária para o superbloco juntamente com a quantidade
-   máxima de arquivos. Os arquivos nesta implementação também tem 
+   máxima de arquivos. Os arquivos nesta implementação também tem
    apenas 1 bloco no máximo de tamanho. */
 #define MAX_BLOCOS (QTD_BLOCOS_SUPERBLOCO + MAX_FILES)
 /* Parte da sua tarefa será armazenar e recuperar corretamente os
    direitos dos arquivos criados */
 #define DIREITOS_PADRAO 0644
-/* Formula utilizada para calcular a quantidade de blocos ocupados 
-   pelosuperbloco e que são necessários para criar, pelo menos, 
+/* Formula utilizada para calcular a quantidade de blocos ocupados
+   pelosuperbloco e que são necessários para criar, pelo menos,
    1024 arquivos. */
 #define QTD_BLOCOS_SUPERBLOCO (1024*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
 
@@ -68,9 +68,10 @@ typedef struct {
     char nome[250];
     uid_t uid;
     gid_t gid;
-    u16 direitos;
-    u16 tamanho;
-    u16 bloco;
+    mode_t mode;
+    nlink_t link;
+    uint16_t tamanho;
+    uint16_t bloco;
     time_t data_acesso;
     time_t data_modific;
 } inode;
