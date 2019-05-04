@@ -375,7 +375,7 @@ static int create_chaosfs(const char *path, mode_t mode,
 /*
 Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
 */
-static int unlink_chaosfs(const char *path){
+static int unlink_chaosfs(const char *path) {
 
 	for (int i = 0; i < MAX_FILES; i++) {
 
@@ -391,6 +391,7 @@ static int unlink_chaosfs(const char *path){
         }
     }
     return 0;
+}
 
 void destroy_chaosfs() {
     printf("\n\n SAINDO DO FS \n\n");
