@@ -11,7 +11,11 @@
 bool compara_nome (const char *a, const char *b) {
     char *ma = (char*)a;
     char *mb = (char*)b;
-    //Joga fora barras iniciais
+
+
+    if (strcmp(ma, "/") == 0 && strcmp(ma, "/") == 0) return true;
+    
+    //Joga fora barras
     for (int i = 0; i < strlen(ma) && ma[0] != '\0'; i++) {
         if (ma[i] == '/')
             ma++;
