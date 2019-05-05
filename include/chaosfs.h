@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include "common.h"
 
-void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos, uint16_t tamanho, uint16_t bloco, const byte *conteudo);
+void preenche_bloco (int isuperbloco, const char *nome, mode_t mode, uint16_t tamanho, uint16_t bloco, const byte *conteudo);
 
 
 static int getattr_chaosfs(const char *path, struct stat *stbuf,

@@ -93,7 +93,7 @@ int carrega_disco_chaosfs() {
 
 
 /* Preenche os campos do superbloco de índice isuperbloco */
-void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
+void preenche_bloco (int isuperbloco, const char *nome, mode_t mode,
                      uint16_t tamanho, uint16_t bloco, const byte *conteudo) {
     char *mnome = (char*)nome;
     //Joga fora a(s) barras iniciais
@@ -106,7 +106,7 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
 
 
     strcpy(superbloco[isuperbloco].nome, mnome);
-    superbloco[isuperbloco].direitos = direitos;
+    superbloco[isuperbloco].mode = mode;
     superbloco[isuperbloco].tamanho = tamanho;
     superbloco[isuperbloco].bloco = bloco;
     superbloco[isuperbloco].uid = getuid();
@@ -139,7 +139,7 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
         if (superbloco[i].bloco != 0 //Bloco sendo usado
             && compara_nome(superbloco[i].nome, path)) { //Nome bate
 
-            stbuf->st_mode = S_IFREG | superbloco[i].direitos;
+            stbuf->st_mode = superbloco[i].mode;
             stbuf->st_nlink = 1;
             stbuf->st_size = superbloco[i].tamanho;
 
@@ -213,7 +213,7 @@ static int read_chaosfs(const char *path, char *buf, size_t size,
 
             memcpy(buf,
                    disco + DISCO_OFFSET(superbloco[i].bloco), size);
-            
+
             return size;
         }
     }
@@ -247,7 +247,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
     //Acha o primeiro bloco vazio
     for (int i = 0; i < MAX_FILES && !flag; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, buf);
+            preenche_bloco (i, path, DIREITOS_PADRAO | S_IFREG, size, i + QTD_BLOCOS_SUPERBLOCO, buf);
             flag = true;
         }
     }
@@ -288,7 +288,7 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
         //Acha o primeiro bloco vazio
         for (int i = 0; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, NULL);
+                preenche_bloco (i, path, DIREITOS_PADRAO | S_IFREG, size, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 break;
             }
         }
@@ -299,14 +299,13 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
 /* Cria um arquivo comum ou arquivo especial (links, pipes, ...) no caminho
    path com o modo mode*/
 static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
-    if (S_ISREG(mode)) { //So aceito criar arquivos normais
-        //Veja "man 2
-        //mknod" para instruções de como pegar os direitos e demais
-        //informações sobre os arquivos
-        //Acha o primeiro bloco vazio
+    if (!S_ISDIR(mode)) { //So aceito criar arquivos que não são diretórios
         for (int i = 0; i < MAX_FILES; i++) {
+            if (compara_nome(path, superbloco[i].nome)) {
+                return -EEXIST;
+            }
             if (superbloco[i].bloco == 0) {//ninguem usando
-                preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
+                preenche_bloco (i, path, mode, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 return 0;
             }
         }
@@ -321,7 +320,7 @@ static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *f
         if (superbloco[i].bloco == 0) //bloco vazio
             continue;
         if (compara_nome(path, superbloco[i].nome)) { //achou!
-            superbloco[i].direitos = mode;
+            superbloco[i].mode = mode;
             return 0;
         }
     }
@@ -372,11 +371,11 @@ static int create_chaosfs(const char *path, mode_t mode,
     //bloco vazio
     for (int i = 0; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
-            preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
+            preenche_bloco (i, path, mode, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
             return 0;
         }
     }
-    return ENOSPC;
+    return -ENOSPC;
 }
 
 /*
@@ -389,7 +388,7 @@ static int unlink_chaosfs(const char *path) {
         if (superbloco[i].bloco == 0) {//bloco vazio
         	continue;
         }
-        else 
+        else
         {
         	if (compara_nome(path, superbloco[i].nome)) { //achou!
         		superbloco[i].bloco = 0;
@@ -414,7 +413,7 @@ void destroy_chaosfs() {
    com os valores apropriados */
 int init_chaosfs(bool formatar_disco) {
     printf("\t- Diretório do arquivo que o FS será salvo : %s\n", dir_copy);
-    
+
     printf("\t- Tamanho do FS: %ld bytes\n", TAM_DISCO);
     disco = calloc(MAX_BLOCOS, TAM_BLOCO);
 
@@ -429,7 +428,7 @@ int init_chaosfs(bool formatar_disco) {
             printf("\t\t\t- FS criado com sucesso\n");
         else
             printf("\t\t\t- Erro ao criar o FS\n");
-            
+
 
     } else {
         printf("\t\t- File system existe ... Carregando do disco ...\n");
@@ -439,9 +438,9 @@ int init_chaosfs(bool formatar_disco) {
             printf("\t\t\t- Erro ao carregar o FS\n");
 
     }
-           
+
     superbloco = (inode*) disco; //posição 0
- 
+
     return 1;
 }
 
@@ -469,7 +468,7 @@ int main(int argc, char *argv[]) {
     printf("Iniciando o ChaosFS...\n");
     printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
     printf("\t Tamanho do inode: %lu bytes\n", sizeof(inode));
-    printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
+    printf("\t Número máximo de arquivos: %d\n", MAX_FILES);
 
     bool formatar_disco = false;
     if (strncmp(argv[(argc-1)], "-ffs", 4) == 0) {
