@@ -340,7 +340,24 @@ static int unlink_chaosfs(const char *path) {
             continue;
         } else {
             if (compara_nome(path, superbloco[i].nome)) { //achou!
-                if (!S_ISDIR(superbloco[i].bloco)) {
+                if (!S_ISDIR(superbloco[i].mode)) {
+                    superbloco[i].bloco = 0;
+                    strcpy(superbloco[i].nome, "");
+                    return 0;
+                }
+            }
+        }
+    }
+    return -ENOSPC;
+}
+
+static int rmdir_chaosfs(const char *path) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
+        if (superbloco[i].bloco == 0) {//bloco vazio
+            continue;
+        } else {
+            if (compara_nome(path, superbloco[i].nome)) { //achou!
+                if (S_ISDIR(superbloco[i].mode)) {
                     superbloco[i].bloco = 0;
                     strcpy(superbloco[i].nome, "");
                     return 0;
@@ -468,6 +485,7 @@ static struct fuse_operations fuse_chaosfs = {
     .mknod = mknod_chaosfs,
     .mkdir = mkdir_chaosfs,
     .unlink = unlink_chaosfs,
+    .rmdir = rmdir_chaosfs,
     .chmod = chmod_chaosfs,
     .chown = chown_chaosfs,
     .open = open_chaosfs,
