@@ -9,7 +9,7 @@
 
 **E-mail:** [e.francesquini@ufabc.edu.br](mailto:e.francesquini@ufabc.edu.br)
 
-## Projeto de Programação - BrisaFS
+## Projeto de Programação - ChaosFS
 
 Informações sobre o projeto, o enunciado, datas de entrega, avaliação em: http://professor.ufabc.edu.br/~e.francesquini/2019.q1.so/projeto
 
