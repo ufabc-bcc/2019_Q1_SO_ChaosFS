@@ -1,7 +1,7 @@
 export AS = as
 export CC = gcc
 export LD = ld
-
+# -ldl -lpthread -lrt -lgcc_s -lpthread -lc -lm
 export TARGET       := chaosfs
 export MAIN         := src/chaosfs.c
 export CODES        := $(filter-out $(MAIN), $(wildcard src/*.c))

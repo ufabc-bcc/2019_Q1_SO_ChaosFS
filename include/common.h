@@ -58,3 +58,6 @@ typedef struct {
 #define QTD_BLOCOS_SUPERBLOCO (MAX_FILES*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
 
 #define TAM_DISCO (MAX_BLOCOS * TAM_BLOCO)
+
+#define MAX_ITENS_DIR (4096 / sizeof(uint16_t))
+#define END_DIR MAX_ITENS_DIR + 2
