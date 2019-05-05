@@ -42,11 +42,27 @@ inode *superbloco;
 
 #define DISCO_OFFSET(B) (B * TAM_BLOCO)
 
+char* quebra_conteudo(const byte *conteudo, int tamanho, int inicio){
+    char* saida = (char*)malloc(tamanho*sizeof(char));
+    for(int i = inicio; i < tamanho + inicio; i++){
+        saida[i - inicio] = conteudo[i];    
+    }
+    return saida;
+}
+
+void encadeia_inodes(uint16_t* v, int qtd_blocos, int tamanho){
+    for(int i = 0; i < qtd_blocos-1; i++){
+        superbloco[v[i]].prox_bloco = &superbloco[v[i+1]].bloco;
+    }
+    superbloco[v[0]].tamanho = tamanho;
+    superbloco[v[qtd_blocos-1]].prox_bloco = NULL;
+}
 
 /* Preenche os campos do superbloco de índice isuperbloco */
 void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
-                     uint16_t tamanho, uint16_t bloco, const byte *conteudo) {
+                     uint16_t tamanho, uint16_t bloco, const byte *conteudo) {            
     char *mnome = (char*)nome;
+
     //Joga fora a(s) barras iniciais
     while (mnome[0] != '\0' && mnome[0] == '/')
         mnome++;
@@ -55,20 +71,60 @@ void preenche_bloco (int isuperbloco, const char *nome, uint16_t direitos,
     if (times == -1)
         times = 0;
 
+    if (tamanho <= 4096) {
+    
+        strcpy(superbloco[isuperbloco].nome, mnome);
+        superbloco[isuperbloco].direitos = direitos;
+        superbloco[isuperbloco].tamanho = tamanho;
+        superbloco[isuperbloco].bloco = bloco;
+        superbloco[isuperbloco].uid = getuid();
+        superbloco[isuperbloco].gid = getgid();
+        superbloco[isuperbloco].data_acesso   = times;
+        superbloco[isuperbloco].data_modific  = times;
 
-    strcpy(superbloco[isuperbloco].nome, mnome);
-    superbloco[isuperbloco].direitos = direitos;
-    superbloco[isuperbloco].tamanho = tamanho;
-    superbloco[isuperbloco].bloco = bloco;
-    superbloco[isuperbloco].uid = getuid();
-    superbloco[isuperbloco].gid = getgid();
-    superbloco[isuperbloco].data_acesso   = times;
-    superbloco[isuperbloco].data_modific  = times;
+        if (conteudo != NULL)
+            memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
+        else
+            memset(disco + DISCO_OFFSET(bloco), 0, tamanho);
 
-    if (conteudo != NULL)
-        memcpy(disco + DISCO_OFFSET(bloco), conteudo, tamanho);
-    else
-        memset(disco + DISCO_OFFSET(bloco), 0, tamanho);
+    } else { //eh necessario mais de um bloco para escrever o conteudo
+
+        //quantidade de blocos inteiros necessarios
+        int qtd_blocos = tamanho/4096;
+        //tamanho do bloco que nao sera totalmente preenchido
+        int tamanho_restante = tamanho%4096;
+        //vetor para armazenar o encadeamento
+        uint16_t* v = malloc(sizeof(uint16_t)*(qtd_blocos+1));
+            
+        //preenche o primeiro bloco com o maximo de conteudo possivel e com as informacoes do arquivo
+        preenche_bloco (isuperbloco, nome, direitos, 0, bloco, quebra_conteudo(conteudo, 4096, 0));
+        v[0] = isuperbloco;
+
+        //preenche os outros blocos apenas com o restante do conteudo
+        for (int i = 1; i < qtd_blocos; i++) {
+            for (int j = 1; j < MAX_BLOCOS; i++){
+                if (superbloco[j].bloco == 0) {
+                    preenche_bloco (j, "", DIREITOS_PADRAO, 0, j + QTD_BLOCOS_SUPERBLOCO, quebra_conteudo(conteudo, 4096, i*4096));
+                    v[i] = j;
+                    break;
+                }
+            }
+        }
+
+        //preenche o ultimo bloco (se houver) com o que ficou faltando do conteudo
+        if (tamanho_restante > 0) {
+            for (int i = 1; i < MAX_BLOCOS; i++) {
+                if (superbloco[i].bloco == 0) {
+                    preenche_bloco (i, "", DIREITOS_PADRAO, tamanho_restante, i + QTD_BLOCOS_SUPERBLOCO, quebra_conteudo(conteudo, tamanho%4096, (qtd_blocos)*4096));
+                    v[qtd_blocos] = i;
+                    break;
+                }
+            }
+            qtd_blocos++;
+        }
+        //chama a funcao para encadear os blocos utilizados
+        encadeia_inodes(v, qtd_blocos, tamanho);
+    }
 }
 
 /* A função getattr_chaosfs devolve os metadados de um arquivo cujo
@@ -151,20 +207,47 @@ static int read_chaosfs(const char *path, char *buf, size_t size,
         if (compara_nome(path, superbloco[i].nome)) {//achou!
             size_t len = superbloco[i].tamanho;
             superbloco[i].data_acesso = time(NULL);
+            inode *superbloco_atual;
 
-            if (offset >= len) {//tentou ler além do fim do arquivo
-                return 0;
-            }
-            if (offset + size > len) {
+            int qtd_blocos = len / 4096;
+            if(qtd_blocos == 0){
+
+                if (offset >= len) {//tentou ler além do fim do arquivo
+                    return 0;
+                }
+                if (offset + size > len) {
+                    memcpy(buf,
+                        disco + DISCO_OFFSET(superbloco[i].bloco),
+                        len - offset);
+                    return len - offset;
+                }
                 memcpy(buf,
-                       disco + DISCO_OFFSET(superbloco[i].bloco),
-                       len - offset);
-                return len - offset;
+                    disco + DISCO_OFFSET(superbloco[i].bloco), size);
+                return size;
             }
-
-            memcpy(buf,
-                   disco + DISCO_OFFSET(superbloco[i].bloco), size);
-            return size;
+            if (qtd_blocos > 0){
+                if (offset >= len) {//tentou ler além do fim do arquivo
+                    return 0;
+                }
+                *superbloco_atual = superbloco[i];
+                while (superbloco_atual->prox_bloco != NULL){
+                    printf("%d", superbloco_atual->tamanho);
+                    if (superbloco_atual->tamanho > 4096) {
+                        memcpy(buf, disco + DISCO_OFFSET(superbloco_atual->bloco), TAM_BLOCO - offset);
+                        superbloco_atual = superbloco_atual->prox_bloco;
+                        return TAM_BLOCO - offset;
+                    } else {
+                        memcpy(buf, disco + DISCO_OFFSET(superbloco_atual->bloco), superbloco_atual->tamanho);
+                        printf("inode = %d\n\n", superbloco_atual->bloco);
+                        superbloco_atual = superbloco_atual->prox_bloco;
+                    }
+                }
+                if (len % 4096 != 0){
+                    memcpy(buf,
+                        disco + DISCO_OFFSET(superbloco_atual->bloco), superbloco_atual->tamanho - offset);
+                    return superbloco[i].tamanho;
+                }
+            }
         }
     }
     //Arquivo não encontrado
@@ -194,7 +277,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
 
     //Se chegou aqui não achou. Entao cria
     //Acha o primeiro bloco vazio
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 1; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
             preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, buf);
             return size;
@@ -208,8 +291,8 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
 /* Altera o tamanho do arquivo apontado por path para tamanho size
    bytes */
 static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info *fi) {
-    if (size > TAM_BLOCO)
-        return EFBIG;
+    //if (size > TAM_BLOCO)
+        //return EFBIG;
 
     //procura o arquivo
     int findex = -1;
@@ -225,7 +308,7 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
         return 0;
     } else {// Arquivo novo
         //Acha o primeiro bloco vazio
-        for (int i = 0; i < MAX_FILES; i++) {
+        for (int i = 1; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
                 preenche_bloco (i, path, DIREITOS_PADRAO, size, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 break;
@@ -243,7 +326,7 @@ static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
         //mknod" para instruções de como pegar os direitos e demais
         //informações sobre os arquivos
         //Acha o primeiro bloco vazio
-        for (int i = 0; i < MAX_FILES; i++) {
+        for (int i = 1; i < MAX_FILES; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
                 preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 return 0;
@@ -319,7 +402,7 @@ static int create_chaosfs(const char *path, mode_t mode,
     //Veja "man 2 mknod" para instruções de como pegar os
     //direitos e demais informações sobre os arquivos Acha o primeiro
     //bloco vazio
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 1; i < MAX_FILES; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
             preenche_bloco (i, path, DIREITOS_PADRAO, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
             return 0;
@@ -334,12 +417,13 @@ static int create_chaosfs(const char *path, mode_t mode,
    com os valores apropriados */
 void init_chaosfs() {
     disco = calloc (MAX_BLOCOS, TAM_BLOCO);
+    printf("\t Tamanho do disco: %ld\n",  TAM_DISCO);
     superbloco = (inode*) disco; //posição 0
     //Cria um arquivo na mão de boas vindas
     char *nome = "UFABC SO 2019.txt";
     //Cuidado! pois se tiver acentos em UTF8 uma letra pode ser mais que um byte
-    char *conteudo = "Adoro as aulas de SO da UFABC!\n";
-    //0 está sendo usado pelo superbloco. O primeiro livre é o 1
+    char *conteudo = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    //0 está sendo usado pelo superbloco. O primeiro livre é o que vem apos o superbloco
     preenche_bloco(0, nome, DIREITOS_PADRAO, strlen(conteudo), 1 + QTD_BLOCOS_SUPERBLOCO , (byte*)conteudo);
 }
 

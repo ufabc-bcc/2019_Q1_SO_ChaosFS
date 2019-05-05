@@ -44,14 +44,14 @@ typedef char byte;
 /* Quantidade necessária para o superbloco juntamente com a quantidade
    máxima de arquivos. Os arquivos nesta implementação também tem 
    apenas 1 bloco no máximo de tamanho. */
-#define MAX_BLOCOS (QTD_BLOCOS_SUPERBLOCO + MAX_FILES)
+#define MAX_BLOCOS (QTD_BLOCOS_SUPERBLOCO + 16625)
 /* Parte da sua tarefa será armazenar e recuperar corretamente os
    direitos dos arquivos criados */
 #define DIREITOS_PADRAO 0644
 /* Formula utilizada para calcular a quantidade de blocos ocupados 
    pelosuperbloco e que são necessários para criar, pelo menos, 
    1024 arquivos. */
-#define QTD_BLOCOS_SUPERBLOCO (1024*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
+#define QTD_BLOCOS_SUPERBLOCO (16625*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
 
 #define TAM_DISCO (MAX_BLOCOS * TAM_BLOCO)
 /* Um inode guarda todas as informações relativas a um arquivo como
@@ -65,4 +65,5 @@ typedef struct {
     u16 bloco;
     time_t data_acesso;
     time_t data_modific;
+    struct inode* prox_bloco;
 } inode;
