@@ -12,8 +12,8 @@ Informações sobre o projeto, o enunciado, datas de entrega, avaliação em: ht
 
 # ChaosFS
 
-Autores:
-Gabriel Martins Trettel
-Bruno Aristimunha Pinto
-Eric Shimizu Karbstein
-Jair Edipo
+**Autores:**
+* Gabriel Martins Trettel
+* Eric Shimizu Karbstein
+* Bruno Aristimunha Pinto
+* Jair Edipo
