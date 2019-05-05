@@ -386,6 +386,7 @@ static int unlink_chaosfs(const char *path) {
         {
         	if (compara_nome(path, superbloco[i].nome)) { //achou!
         		superbloco[i].bloco = 0;
+                strcpy(superbloco[i].nome, "");
         		return 0;
         	}
         }
