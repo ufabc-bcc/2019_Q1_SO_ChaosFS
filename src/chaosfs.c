@@ -163,56 +163,36 @@ static int readdir_chaosfs(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0, 0);
     filler(buf, "..", NULL, 0, 0);
 
+    bool done = false;
     for (int i = 0; i < MAX_BLOCOS; i++) {
-        if (superbloco[i].bloco != 0) { //Bloco ocupado!
-            // if (S_ISDIR(superbloco[i].mode)) {
-            //     uint16_t *d = (uint16_t *) (disco + DISCO_OFFSET(superbloco[i].bloco));
-            //     for (uint16_t j = 0; j < MAX_ITENS_DIR; j++) {
-            //         filler(buf, superbloco[*(d+j)].nome, NULL, 0, 0);
-            //     }
-            // } else {
-                filler(buf, superbloco[i].nome, NULL, 0, 0);
-            // }
+        if (superbloco[i].bloco != 0 && compara_nome(path, superbloco[i].nome)) { //Bloco ocupado!
+            if (S_ISDIR(superbloco[i].mode)) {
+                uint16_t* v = (uint16_t *) (disco + DISCO_OFFSET(superbloco[i].bloco));
+
+                if (v == NULL) {
+                    done = false;
+                    break;
+                }
+
+                // filler(buf, ".", NULL, 0, 0);
+                // filler(buf, "..", NULL, 0, 0);
+
+                for (uint16_t j = 2; j < MAX_ITENS_DIR; j++) {
+                    if (*(v+j) == END_DIR) {
+                        break;
+                    } else { done = true; }
+                    filler(buf, superbloco[v[j]].nome, NULL, 0, 0);
+                }
+            } else {
+                return -ENOTDIR;
+            }
         }
     }
 
-    return 0;
-    // (void) offset;
-    // (void) fi;
-    //
-    // filler(buf, ".", NULL, 0, 0);
-    // filler(buf, "..", NULL, 0, 0);
-    //
-    // bool done = false;
-    // for (int i = 0; i < MAX_BLOCOS; i++) {
-    //     if (superbloco[i].bloco != 0 && compara_nome(path, superbloco[i].nome)) { //Bloco ocupado!
-    //         if (S_ISDIR(superbloco[i].mode)) {
-    //             uint16_t* v = (uint16_t *) (disco + DISCO_OFFSET(superbloco[i].bloco));
-    //
-    //             if (v == NULL) {
-    //                 done = false;
-    //                 break;
-    //             }
-    //
-    //             // filler(buf, ".", NULL, 0, 0);
-    //             // filler(buf, "..", NULL, 0, 0);
-    //
-    //             for (uint16_t j = 2; j < MAX_ITENS_DIR; j++) {
-    //                 if (*(v+j) == END_DIR) {
-    //                     break;
-    //                 } else { done = true; }
-    //                 filler(buf, superbloco[v[j]].nome, NULL, 0, 0);
-    //             }
-    //         } else {
-    //             return -ENOTDIR;
-    //         }
-    //     }
-    // }
-    //
-    // if (done) {
-    //     return 0;
-    // }
-    // return -ENOENT;
+    if (done) {
+        return 0;
+    }
+    return -ENOENT;
 }
 
 /* Abre um arquivo. Caso deseje controlar os arquvos abertos é preciso
