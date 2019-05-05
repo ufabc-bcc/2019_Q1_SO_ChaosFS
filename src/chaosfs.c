@@ -314,6 +314,43 @@ static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
     return EINVAL;
 }
 
+static int mkdir_chaosfs(const char* path, mode_t mode) {
+    mode_t new_dir_mode = mode | S_IFDIR;
+    if (S_ISDIR(new_dir_mode)) {
+        for (int i = 0; i < MAX_BLOCOS; i++) {
+            if (compara_nome(path, superbloco[i].nome)) {
+                return -EEXIST;
+            }
+            if (superbloco[i].bloco == 0) {//ninguem usando
+                preenche_bloco (i, path, new_dir_mode, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
+                return 0;
+            }
+        }
+        return -ENOSPC;
+    }
+    return -EINVAL;
+}
+
+/*
+Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
+*/
+static int unlink_chaosfs(const char *path) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
+        if (superbloco[i].bloco == 0) {//bloco vazio
+            continue;
+        } else {
+            if (compara_nome(path, superbloco[i].nome)) { //achou!
+                if (!S_ISDIR(superbloco[i].bloco)) {
+                    superbloco[i].bloco = 0;
+                    strcpy(superbloco[i].nome, "");
+                    return 0;
+                }
+            }
+        }
+    }
+    return -ENOSPC;
+}
+
 static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *fi) {
     // Procura o superbloco do arquivo
     for (int i = 0; i < MAX_BLOCOS; i++) {
@@ -378,26 +415,6 @@ static int create_chaosfs(const char *path, mode_t mode,
     return -ENOSPC;
 }
 
-/*
-Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
-*/
-static int unlink_chaosfs(const char *path) {
-    for (int i = 0; i < MAX_BLOCOS; i++) {
-        if (superbloco[i].bloco == 0) {//bloco vazio
-            continue;
-        } else {
-            if (compara_nome(path, superbloco[i].nome)) { //achou!
-                if (!S_ISDIR(superbloco[i].bloco)) {
-                    superbloco[i].bloco = 0;
-                    strcpy(superbloco[i].nome, "");
-                    return 0;
-                }
-            }
-        }
-    }
-    return -ENOSPC;
-}
-
 void destroy_chaosfs() {
     if(contador_buffer > 0)
         fsync_chaosfs(dir_copy, 0, NULL);
@@ -449,6 +466,8 @@ static struct fuse_operations fuse_chaosfs = {
     .fsync = fsync_chaosfs,
     .getattr = getattr_chaosfs,
     .mknod = mknod_chaosfs,
+    .mkdir = mkdir_chaosfs,
+    .unlink = unlink_chaosfs,
     .chmod = chmod_chaosfs,
     .chown = chown_chaosfs,
     .open = open_chaosfs,
@@ -457,7 +476,6 @@ static struct fuse_operations fuse_chaosfs = {
     .truncate	= truncate_chaosfs,
     .utimens = utimens_chaosfs,
     .write = write_chaosfs,
-    .unlink = unlink_chaosfs,
     .destroy = destroy_chaosfs
 };
 
