@@ -135,7 +135,7 @@ static int getattr_chaosfs(const char *path, struct stat *stbuf,
     }
 
     //Busca arquivo na lista de inodes
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco != 0 //Bloco sendo usado
             && compara_nome(superbloco[i].nome, path)) { //Nome bate
 
@@ -171,7 +171,7 @@ static int readdir_chaosfs(const char *path, void *buf, fuse_fill_dir_t filler,
     filler(buf, ".", NULL, 0, 0);
     filler(buf, "..", NULL, 0, 0);
 
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco != 0) { //Bloco ocupado!
             filler(buf, superbloco[i].nome, NULL, 0, 0);
         }
@@ -194,7 +194,7 @@ static int read_chaosfs(const char *path, char *buf, size_t size,
                         off_t offset, struct fuse_file_info *fi) {
 
     //Procura o arquivo
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) //bloco vazio
             continue;
         if (compara_nome(path, superbloco[i].nome)) {//achou!
@@ -229,7 +229,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
                          off_t offset, struct fuse_file_info *fi) {
 
     bool flag = false;
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) { //bloco vazio
             continue;
         }
@@ -245,7 +245,7 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
 
     //Se chegou aqui não achou. Entao cria
     //Acha o primeiro bloco vazio
-    for (int i = 0; i < MAX_FILES && !flag; i++) {
+    for (int i = 0; i < MAX_BLOCOS && !flag; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
             preenche_bloco (i, path, DIREITOS_PADRAO | S_IFREG, size, i + QTD_BLOCOS_SUPERBLOCO, buf);
             flag = true;
@@ -274,7 +274,7 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
 
     //procura o arquivo
     int findex = -1;
-    for(int i = 0; i < MAX_FILES; i++) {
+    for(int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco != 0
             && compara_nome(path, superbloco[i].nome)) {
             findex = i;
@@ -286,7 +286,7 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
         return 0;
     } else {// Arquivo novo
         //Acha o primeiro bloco vazio
-        for (int i = 0; i < MAX_FILES; i++) {
+        for (int i = 0; i < MAX_BLOCOS; i++) {
             if (superbloco[i].bloco == 0) {//ninguem usando
                 preenche_bloco (i, path, DIREITOS_PADRAO | S_IFREG, size, i + QTD_BLOCOS_SUPERBLOCO, NULL);
                 break;
@@ -300,7 +300,7 @@ static int truncate_chaosfs(const char *path, off_t size, struct fuse_file_info 
    path com o modo mode*/
 static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
     if (!S_ISDIR(mode)) { //So aceito criar arquivos que não são diretórios
-        for (int i = 0; i < MAX_FILES; i++) {
+        for (int i = 0; i < MAX_BLOCOS; i++) {
             if (compara_nome(path, superbloco[i].nome)) {
                 return -EEXIST;
             }
@@ -316,7 +316,7 @@ static int mknod_chaosfs(const char *path, mode_t mode, dev_t rdev) {
 
 static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *fi) {
     // Procura o superbloco do arquivo
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) //bloco vazio
             continue;
         if (compara_nome(path, superbloco[i].nome)) { //achou!
@@ -330,7 +330,7 @@ static int chmod_chaosfs(const char* path, mode_t mode, struct fuse_file_info *f
 
 static int chown_chaosfs(const char* path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
     // Procura o superbloco do arquivo
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) //bloco vazio
             continue;
         if (compara_nome(path, superbloco[i].nome)) { //achou!
@@ -349,7 +349,7 @@ static int utimens_chaosfs(const char *path, const struct timespec ts[2],
                            struct fuse_file_info *fi) {
 
     // Procura o superbloco do arquivo
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) //bloco vazio
             continue;
         if (compara_nome(path, superbloco[i].nome)) { //achou!
@@ -369,7 +369,7 @@ static int create_chaosfs(const char *path, mode_t mode,
     //Veja "man 2 mknod" para instruções de como pegar os
     //direitos e demais informações sobre os arquivos Acha o primeiro
     //bloco vazio
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) {//ninguem usando
             preenche_bloco (i, path, mode, 0, i + QTD_BLOCOS_SUPERBLOCO, NULL);
             return 0;
@@ -382,7 +382,7 @@ static int create_chaosfs(const char *path, mode_t mode,
 Remove (deleta) um determinado arquivo, link simbólico ou nó especial apagando o link de referência.
 */
 static int unlink_chaosfs(const char *path) {
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_BLOCOS; i++) {
         if (superbloco[i].bloco == 0) {//bloco vazio
             continue;
         } else {
