@@ -39,6 +39,8 @@ byte *disco;
 //guarda os inodes dos arquivos
 inode *superbloco;
 
+int contador_buffer = 0;
+
 char *dir_copy = "/tmp/chaos.fs";
 // char *dir_copy = "/tmp/teste";
 
@@ -54,7 +56,7 @@ static int fsync_chaosfs(const char *path, int isdatasync,
     // Cuidado! Você vai precisar jogar tudo que está só em memória no disco
 
     FILE *fd= fopen(dir_copy, "wb");
-    if (fd < 0) {
+    if (fd < 0 || fd == NULL) {
         perror("\n\nErro no open");
         fflush(stdout);
 
@@ -251,7 +253,12 @@ static int write_chaosfs(const char *path, const char *buf, size_t size,
     }
 
     if (flag) {
-        fsync_chaosfs(dir_copy, 0, NULL);
+        contador_buffer++;
+        if( contador_buffer == 20) {
+            fsync_chaosfs(dir_copy, 0, NULL);
+            contador_buffer = 0;
+        }
+
         return size;
     }
 
@@ -395,6 +402,9 @@ static int unlink_chaosfs(const char *path) {
 }
 
 void destroy_chaosfs() {
+    if(contador_buffer > 0)
+        fsync_chaosfs(dir_copy, 0, NULL);
+
     printf("\n\n SAINDO DO FS \n\n");
 }
 
@@ -405,7 +415,7 @@ void destroy_chaosfs() {
 int init_chaosfs(bool formatar_disco) {
     printf("\t- Diretório do arquivo que o FS será salvo : %s\n", dir_copy);
     
-    printf("\t- Tamanho do FS: %ld\n", TAM_DISCO);
+    printf("\t- Tamanho do FS: %ld bytes\n", TAM_DISCO);
     disco = calloc(MAX_BLOCOS, TAM_BLOCO);
 
     if( access(dir_copy, R_OK ) == -1 || formatar_disco) {
@@ -458,7 +468,7 @@ int main(int argc, char *argv[]) {
 
     printf("Iniciando o ChaosFS...\n");
     printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
-    printf("\t Tamanho do inode: %lu\n", sizeof(inode));
+    printf("\t Tamanho do inode: %lu bytes\n", sizeof(inode));
     printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
 
     bool formatar_disco = false;
