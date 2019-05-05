@@ -10,6 +10,7 @@ if dir[-1] != '/':
     dir += '/'
 
 size = int(size)
+conteudo = "inicio" + 4084*"a" + "final\n"
 
 pbar = tqdm(total=size, ncols=100)
 for x in range(size):
@@ -18,6 +19,6 @@ for x in range(size):
     name = f"{bin(x)[2:]:>15}".replace(' ', '0')
 
     with open(dir + name, 'w') as f:
-        f.writelines(f"aaa {x}\n")
+        f.writelines(conteudo)
 
 pbar.close()
