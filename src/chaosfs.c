@@ -27,8 +27,9 @@
 #define FUSE_USE_VERSION 31
 
 #include "chaosfs.h"
-// #include "../include/common.h"
 #include "utils.h"
+
+
 
 /* Disco - A variável abaixo representa um disco que pode ser acessado
    por blocos de tamanho TAM_BLOCO com um total de MAX_BLOCOS. Você
@@ -40,9 +41,9 @@ byte *disco;
 inode *superbloco;
 
 char *dir_copy = "/tmp/chaos.fs";
-// char *dir_copy = "/tmp/teste";
+off_t TAM_DISCO;
+off_t MAX_BLOCOS;
 
-#define DISCO_OFFSET(B) (B * TAM_BLOCO)
 
 
 /* Sincroniza escritas pendentes (ainda em um buffer) em disco. Só
@@ -75,6 +76,10 @@ static int fsync_chaosfs(const char *path, int isdatasync,
 
 
 int carrega_disco_chaosfs() {
+    if(carrega_tamanho_chaosfs(-1) == -1)
+        return 0;
+
+
     FILE *fd= fopen(dir_copy, "rb");
     if (fd < 0) {
         return -1;
@@ -405,6 +410,8 @@ int init_chaosfs(bool formatar_disco) {
     printf("\t- Diretório do arquivo que o FS será salvo : %s\n", dir_copy);
     
     printf("\t- Tamanho do FS: %ld\n", TAM_DISCO);
+    printf("\t- Quantidade de blocos: %ld\n", MAX_BLOCOS);
+
     disco = calloc(MAX_BLOCOS, TAM_BLOCO);
 
     if( access(dir_copy, R_OK ) == -1 || formatar_disco) {
@@ -434,6 +441,37 @@ int init_chaosfs(bool formatar_disco) {
     return 1;
 }
 
+int carrega_tamanho_chaosfs(__off_t tamanho) {
+    
+    if(tamanho == -1) {  // Carregar do HD
+        struct stat st;
+        if(stat(dir_copy,&st) == 0) {
+            long int tamanho_arquivo = st.st_size;
+            TAM_DISCO = (__off_t) __TAM_DISCO(tamanho_arquivo);
+            MAX_BLOCOS = (__off_t) __MAX_BLOCOS(tamanho_arquivo);
+
+            if (TAM_DISCO < TAM_MINIMO_DO_DISCO) {
+                printf("\t\t-Tamanho insuficiente para o FS. Mínimo de 5Mb");
+                return -1;
+            }
+        } else {
+            return -1;
+        }
+
+    } else {         // Construir com base em "tamanho"
+        tamanho = tamanho * 1048576;
+        TAM_DISCO = (off_t) __TAM_DISCO(tamanho);
+        MAX_BLOCOS = (off_t) __MAX_BLOCOS(tamanho);
+
+        if (TAM_DISCO < TAM_MINIMO_DO_DISCO) {
+            printf("\t\t-Tamanho insuficiente para o FS. Mínimo de 5Mb");
+            return -1;
+        }
+    }
+
+    return 1;
+}
+
 /* Esta estrutura contém os ponteiros para as operações implementadas
    no FS */
 static struct fuse_operations fuse_chaosfs = {
@@ -454,22 +492,27 @@ static struct fuse_operations fuse_chaosfs = {
 };
 
 int main(int argc, char *argv[]) {
+    off_t tam_disco_arbitrario;
 
     printf("Iniciando o ChaosFS...\n");
-    printf("\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
-    printf("\t Tamanho do inode: %lu\n", sizeof(inode));
-    printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
 
     bool formatar_disco = false;
-    if (strncmp(argv[(argc-1)], "-ffs", 4) == 0) {
-        argc = argc - 1;
+    if (strncmp(argv[(argc-2)], "-ffs", 4) == 0) {      // Verifica se é pra formatar o disco
         formatar_disco = true;
-    }
+        tam_disco_arbitrario = (off_t) atoi(argv[(argc-1)]);
 
+        argc = argc - 2;
+        carrega_tamanho_chaosfs(tam_disco_arbitrario);
+    }
 
     if (init_chaosfs(formatar_disco) == -1)
         return 1;
 
+    printf("\n\t Tamanho máximo de arquivo = 1 bloco = %d bytes\n", TAM_BLOCO);
+    printf("\t Tamanho do inode: %lu\n", sizeof(inode));
+    printf("\t Número máximo de arquivos: %lu\n", MAX_FILES);
+
     printf("\n\n");
-    return fuse_main(argc, argv, &fuse_chaosfs, NULL);
+    return 0;
+    // return fuse_main(argc, argv, &fuse_chaosfs, NULL);
 }

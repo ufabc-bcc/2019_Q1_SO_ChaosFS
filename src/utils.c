@@ -1,6 +1,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
+#include "common.h"
 
 //! NÃO ESQUECER DE ATUALIZAR A HEADER (include/utils.h) SE ADD UMA NOVA FUNÇÃO!!
 
@@ -20,4 +22,6 @@ bool compara_nome (const char *a, const char *b) {
     //quando tiver diretórios
     return strcmp(ma, mb) == 0;
 }
+
+
 

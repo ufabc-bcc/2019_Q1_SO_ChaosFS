@@ -60,3 +60,5 @@ static int create_chaosfs(const char *path, mode_t mode,
 int init_chaosfs(bool formatar_disco);
 
 void destroy_chaosfs();
+
+int tamanho_chaosfs();
