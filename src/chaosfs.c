@@ -69,7 +69,7 @@ static int fsync_chaosfs(const char *path, int isdatasync,
 
         return -1;
     }
-    close(fd);
+    fclose(fd);
 
 
     return 0;
@@ -85,7 +85,7 @@ int carrega_disco_chaosfs() {
     if (fread(disco, TAM_BLOCO, MAX_BLOCOS, fd) <= 0) {
         return -1;
     }
-    close(fd);
+    fclose(fd);
 
 
     return 0;
