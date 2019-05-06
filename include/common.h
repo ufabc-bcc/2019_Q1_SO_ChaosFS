@@ -40,7 +40,7 @@ typedef struct {
     char nome[250];
     uid_t uid;
     gid_t gid;
-    u16 direitos;
+    mode_t mode;
     u16 tamanho;
     u16 bloco;
     time_t data_acesso;
@@ -57,4 +57,3 @@ typedef struct {
 #define QTD_BLOCOS_SUPERBLOCO (MAX_FILES*INODE_SIZE/(TAM_BLOCO-INODE_SIZE))+1
 
 #define TAM_DISCO (MAX_BLOCOS * TAM_BLOCO)
-
